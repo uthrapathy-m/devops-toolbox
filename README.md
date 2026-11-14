@@ -130,39 +130,33 @@ Tip: give each environment its own colour (for example, `matrix` on prod and `oc
 - `toolbox-banner` shows the banner again.
 - `DEVOPS_TOOLBOX_BANNER` controls what appears at login: `1` for this banner (default), `fastfetch` for the detailed fastfetch view, or `0` for nothing. Set it in `~/.devops-toolbox/custom.sh`.
 
-## Sticky top bar (tmux)
+## Pinned banner (tmux)
 
-The **tmux top bar** item keeps your theme visible all the time. A themed status bar is pinned to the **top** of the screen, and everything else scrolls underneath it:
+The **pinned banner** item keeps a compact DEVOPS banner fixed at the top of the screen. Your shell and everything you run scroll underneath it:
 
-```
- DEVOPS  prod-k8s-01 │  1:bash  2:logs            10.0.1.15 │ load 0.24 │ mem 31% │ ⎈ k3d-dev │ 14:32
-```
+<p align="center"><img src="assets/pinned-banner.png" alt="Pinned DEVOPS banner above the shell inside tmux" width="860"></p>
 
-- **Contents:** hostname, windows and time. In windows where the pinned banner is hidden (or the screen is too small for it), the bar also shows IP, load, memory and the Kubernetes context, refreshed every 5 seconds; otherwise those stats live under the pinned banner so nothing is shown twice. `toolbox-theme <name>` recolours it live, together with the banner, k9s and sofka.
-- **Auto-attach:** every SSH login joins a tmux session called `main`, so the bar is always there. If your connection drops, your work keeps running; SSH back in and you're where you left off.
-- **Pinned banner:** every tmux window also gets the compact DEVOPS banner in a read-only pane at the top: the logo plus 2 live lines (kernel, uptime, load, memory, disk, IP and Kubernetes context), refreshed every 5 seconds. Because the logo is already pinned, the shell below only prints the welcome lines.
-
-  <p align="center"><img src="assets/pinned-banner.png" alt="Pinned DEVOPS banner above the shell inside tmux" width="860"></p>
-
-  - `Ctrl-a b` hides or shows it in the current window. `Ctrl-a z` zooms your pane to full screen.
-  - `toolbox-pin off` / `toolbox-pin on` turns it off or on everywhere, and the choice is remembered.
-  - It's skipped automatically when the window is smaller than 26 rows or 60 columns; the thin top bar still shows.
-  - Typing never goes into the banner pane, and exiting your shell closes the window as usual.
-- **Banner:** if the pinned banner is off or the screen is small, the full banner shows once when the session starts, not in every new window.
+- **What it shows:** the gradient logo, the date and time, `© year user@host`, then 2 live lines: kernel, uptime, load, CPUs and OS; memory, disk, IP and the Kubernetes context. It refreshes every 5 seconds, and `toolbox-theme <name>` recolours it live, together with k9s and sofka.
+- **How it works:** it's a read-only tmux pane in every window, so typing never goes into it and `clear` or long output never moves it. There's no tmux status bar.
+- **Auto-attach:** every SSH login joins a tmux session called `main`. If your connection drops, your work keeps running; SSH back in and you're where you left off.
+- **No repeated logo:** the shell below only prints the welcome lines. If the pinned banner is off or the screen is too small, the full banner shows once instead.
+- **Small screens:** it's skipped automatically when the window is smaller than 26 rows or 60 columns.
 - **Safe by design:** only the first shell of an SSH login attaches; nested shells, `bash -c` and VS Code terminals never do. If tmux ever fails to start, you still get a normal shell.
-- **Turn auto-attach off:** add `export DEVOPS_TOOLBOX_TMUX=0` to `~/.devops-toolbox/custom.sh`.
+- **Turning things off:** `toolbox-pin off` / `toolbox-pin on` turns the pinned banner off or on everywhere, and the choice is remembered. To stop auto-attaching to tmux, add `export DEVOPS_TOOLBOX_TMUX=0` to `~/.devops-toolbox/custom.sh`.
 
 Keys (prefix `Ctrl-a`):
 
 | Keys | Action |
 |---|---|
+| `Ctrl-a` `b` | Hide / show the pinned banner in this window |
+| `Ctrl-a` `z` | Zoom the current pane to full screen (again to restore) |
+| `Ctrl-a` `w` | List windows and switch (there's no tab bar) |
+| `Ctrl-a` `S` | Show / hide the tmux status bar, if you want it |
 | `Ctrl-a` `d` | Detach (work keeps running); reattach with `tmux a` or a new SSH login |
 | `Ctrl-a` `c` / `n` / `p` | New window / next / previous |
 | `Ctrl-a` <code>&#124;</code> / `-` | Split side by side / top and bottom |
 | `Ctrl-a` `h` `j` `k` `l` | Move between panes (`H` `J` `K` `L` to resize) |
 | `Ctrl-a` `[` | Scroll / copy mode (`q` to leave) |
-| `Ctrl-a` `b` | Hide / show the pinned banner in this window |
-| `Ctrl-a` `z` | Zoom the current pane to full screen (again to restore) |
 
 ## k9s and sofka
 
@@ -261,7 +255,7 @@ Anything already installed shows `● version` and is skipped. Pass `--upgrade` 
 | Monitoring | btop, htop, fastfetch (with a custom login banner) |
 | Containers & Kubernetes | docker + compose, kubectl, helm, k9s, [sofka](https://github.com/nklmilojevic/sofka), k3d, k3s server, kubectx/kubens, stern, lazydocker, dive |
 | Cloud & IaC | terraform, opentofu, ansible, AWS CLI v2, Azure CLI, gcloud |
-| Aliases & Dotfiles | General, Git, Kubernetes and Docker alias packs, tmux.conf, fzf defaults, k9s / sofka setup, tmux top bar |
+| Aliases & Dotfiles | General, Git, Kubernetes and Docker alias packs, tmux.conf, fzf defaults, k9s / sofka setup, pinned banner |
 
 Run `--list` to print every item id.
 
