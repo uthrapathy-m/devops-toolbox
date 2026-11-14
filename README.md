@@ -121,6 +121,27 @@ Tip: give each environment its own colour (for example, `matrix` on prod and `oc
 - `toolbox-banner` shows the banner again.
 - `DEVOPS_TOOLBOX_BANNER` controls what appears at login: `1` for this banner (default), `fastfetch` for the detailed fastfetch view, or `0` for nothing. Set it in `~/.devops-toolbox/custom.sh`.
 
+## k9s and sofka
+
+Pick **k9s / sofka setup** (it's in the K8s Ops profile) to get both Kubernetes terminal UIs ready to use:
+
+- **Themed skins.** k9s gets a skin generated from your banner theme. sofka gets the closest built-in skin: Ocean → tokyo-night, Amber → gruvbox-dark, Ice → nord, Snow → one-dark, Matrix → monokai recoloured green, Sand → flexoki-dark, Lavender → dracula. `toolbox-theme <name>` switches the banner, k9s and sofka together.
+- **k9s plugins:**
+
+  | Key | Where | What it does |
+  |---|---|---|
+  | `Ctrl-L` | pods, deployments, statefulsets, daemonsets | stern logs across all pods and containers |
+  | `Shift-D` | containers | Attach a netshoot debug container |
+  | `Shift-I` | containers | Inspect the image's layers with dive |
+  | `Shift-E` | pods, deployments | Watch namespace events |
+  | `Ctrl-G` | namespaces | `kubectl get all` for the namespace |
+
+- **k9s hotkeys:** `Shift-0` … `Shift-7` jump to pods, deployments, services, ingresses, nodes, events, Helm releases and namespaces.
+- **Aliases** in both tools: `:dp`, `:sec`, `:cm`, `:jo`, `:cj` (k9s also gets `:crb`, `:rb`, `:np` and `:pvc`).
+- **From the shell:** `k9` starts k9s and `sf` starts sofka. `toolbox-help` includes a cheat sheet for keys inside k9s.
+
+sofka can also convert your k9s setup with `sofka import k9s`.
+
 ## Fonts (install on your own computer)
 
 Your **SSH client** renders the text, so fonts belong on the computer you SSH *from*, not on the server. The banner works with any monospace font. A Nerd Font makes the block letters crisper and adds the icons used by eza, starship and lazygit.
@@ -159,9 +180,9 @@ Anything already installed shows `● version` and is skipped. Pass `--upgrade` 
 |---|---|
 | CLI Utilities | fzf, zoxide (`z`), bat, eza, ripgrep, fd, jq, yq, tldr, ncdu, tmux, git-delta, lazygit, starship |
 | Monitoring | btop, htop, fastfetch (with a custom login banner) |
-| Containers & Kubernetes | docker + compose, kubectl, helm, k9s, kubectx/kubens, stern, lazydocker, dive |
+| Containers & Kubernetes | docker + compose, kubectl, helm, k9s, [sofka](https://github.com/nklmilojevic/sofka), kubectx/kubens, stern, lazydocker, dive |
 | Cloud & IaC | terraform, opentofu, ansible, AWS CLI v2, Azure CLI, gcloud |
-| Aliases & Dotfiles | General, Git, Kubernetes and Docker alias packs, tmux.conf, fzf defaults |
+| Aliases & Dotfiles | General, Git, Kubernetes and Docker alias packs, tmux.conf, fzf defaults, k9s / sofka setup |
 
 Run `--list` to print every item id.
 
@@ -211,6 +232,8 @@ Most tools come from their **latest GitHub release**. If you hit the GitHub API 
 | `~/.devops-toolbox/logs/` | One install log per tool |
 | `~/.config/fastfetch/` | Banner config and DEVOPS logo |
 | `~/.tmux.conf` | Only if you pick it; any existing file is backed up first |
+| `~/.config/k9s/` | k9s / sofka setup: skin, `plugins.yaml`, `hotkeys.yaml`, `aliases.yaml` (your own files are backed up first) |
+| `~/.config/sofka/config.toml` | k9s / sofka setup: aliases, plus a marked skin block; the rest of the file is yours |
 
 Re-running the script is safe: it never adds duplicate lines and keeps the alias packs you enabled before.
 

@@ -110,6 +110,7 @@ item helm         k8s   tool  helm       "helm"           "Kubernetes package ma
 item k9s          k8s   tool  k9s        "k9s"            "Kubernetes terminal UI"
 item kubectx      k8s   tool  kubectx    "kubectx/kubens" "Switch contexts & namespaces fast"
 item stern        k8s   tool  stern      "stern"          "Tail logs from many pods"
+item sofka        k8s   tool  sofka      "sofka"          "Rust Kubernetes TUI (k9s alternative)"
 item lazydocker   k8s   tool  lazydocker "lazydocker"     "Terminal UI for docker"
 item dive         k8s   tool  dive       "dive"           "Explore docker image layers"
 item terraform    cloud tool  terraform  "terraform"      "HashiCorp infrastructure as code"
@@ -124,6 +125,7 @@ item alias-k8s     shell alias -         "Kubernetes aliases" "k, kgp, kgs, kl, 
 item alias-docker  shell alias -         "Docker aliases"     "d, dps, dc, dcu, dlog, dex"
 item dot-tmux      shell dotfile -       "tmux.conf"          "Mouse, sane splits, nice status bar"
 item dot-fzf       shell dotfile -       "fzf defaults"       "fd-powered search + bat previews"
+item dot-k8s-tui   shell dotfile -       "k9s / sofka setup"  "Themed skins, plugins, hotkeys, aliases"
 
 PROFILES=(minimal core k8s cloud everything custom)
 declare -A P_NAME=(
@@ -133,7 +135,7 @@ declare -A P_NAME=(
 declare -A P_DESC=(
   [minimal]="fzf, zoxide, bat, btop + general/git aliases"
   [core]="All modern CLI utilities, tmux, starship, dotfiles"
-  [k8s]="Core CLI + docker, kubectl, helm, k9s, stern, aliases"
+  [k8s]="Core CLI + docker, kubectl, helm, k9s, sofka, stern"
   [cloud]="Core CLI + terraform, opentofu, ansible, aws/az/gcloud"
   [everything]="Every item in the catalog"
   [custom]="Start from nothing, pick item by item"
@@ -143,7 +145,7 @@ _P_CORE="$_P_MIN eza ripgrep fd jq yq tldr ncdu tmux delta lazygit starship htop
 declare -A P_ITEMS=(
   [minimal]="$_P_MIN"
   [core]="$_P_CORE"
-  [k8s]="$_P_CORE docker kubectl helm k9s kubectx stern lazydocker dive alias-k8s alias-docker"
+  [k8s]="$_P_CORE docker kubectl helm k9s sofka kubectx stern lazydocker dive alias-k8s alias-docker dot-k8s-tui"
   [cloud]="$_P_CORE terraform opentofu ansible awscli azure gcloud"
   [everything]="${IDS[*]}"
   [custom]="fastfetch"
@@ -374,6 +376,7 @@ install_k9s()        { gh_install derailed/k9s k9s 'k9s_linux_@ARCH@\.tar\.gz$';
 install_kubectx()    { gh_install ahmetb/kubectx kubectx 'kubectx_.*_linux_@ARCH@\.tar\.gz$' || return 1
                        gh_install ahmetb/kubectx kubens 'kubens_.*_linux_@ARCH@\.tar\.gz$'; }
 install_stern()      { gh_install stern/stern stern 'stern_.*_linux_@ARCH@\.tar\.gz$'; }
+install_sofka()      { gh_install nklmilojevic/sofka sofka "${MUSL_OR_GNU[@]}"; }
 install_lazydocker() { gh_install jesseduffield/lazydocker lazydocker 'lazydocker_.*_linux_@ARCH@\.tar\.gz$'; }
 install_dive()       { gh_install wagoodman/dive dive 'dive_.*_linux_@ARCH@\.tar\.gz$'; }
 install_terraform() {
@@ -425,6 +428,108 @@ install_gcloud() {
 # shell items only record themselves; files are generated in write_shell_config
 install_alias-general() { :; }; install_alias-git() { :; }; install_alias-k8s() { :; }; install_alias-docker() { :; }
 install_dot-fzf() { :; }
+tui_write() {  # tui_write <file> — writes stdin to file, backing up a user's own (non-toolbox) version first
+  if [ -f "$1" ] && ! grep -q 'devops-toolbox' "$1"; then cp "$1" "$1.bak.$(date +%s)"; echo "backed up $1"; fi
+  cat > "$1"
+}
+install_dot-k8s-tui() {
+  local cfg="${XDG_CONFIG_HOME:-$HOME/.config}" k9 sf
+  k9="${K9S_CONFIG_DIR:-$cfg/k9s}"; sf="$cfg/sofka"
+  mkdir -p "$k9" "$sf"
+
+  tui_write "$k9/plugins.yaml" <<'EOF'
+# devops-toolbox k9s plugins — press the shortcut on a selected row
+plugins:
+  stern-logs:
+    shortCut: Ctrl-L
+    description: Logs (stern, all containers)
+    scopes: [pods, deployments, statefulsets, daemonsets]
+    command: stern
+    background: false
+    args: [--tail, "100", --context, $CONTEXT, -n, $NAMESPACE, $NAME]
+  debug-netshoot:
+    shortCut: Shift-D
+    description: Debug container (netshoot)
+    scopes: [containers]
+    command: bash
+    background: false
+    confirm: true
+    args: [-c, "kubectl debug -it --context $CONTEXT -n $NAMESPACE $POD --target=$NAME --image=nicolaka/netshoot:latest --profile=general -- bash"]
+  dive-image:
+    shortCut: Shift-I
+    description: Inspect image layers (dive)
+    scopes: [containers]
+    command: dive
+    background: false
+    args: [$COL-IMAGE]
+  ns-get-all:
+    shortCut: Ctrl-G
+    description: kubectl get all
+    scopes: [namespaces]
+    command: bash
+    background: false
+    args: [-c, "kubectl get all -n $NAME --context $CONTEXT | less -K"]
+  watch-events:
+    shortCut: Shift-E
+    description: Watch events
+    scopes: [pods, deployments]
+    command: bash
+    background: false
+    args: [-c, "kubectl get events -n $NAMESPACE --context $CONTEXT --sort-by=.lastTimestamp -w"]
+EOF
+
+  tui_write "$k9/hotkeys.yaml" <<'EOF'
+# devops-toolbox k9s hotkeys — jump straight to a view from anywhere
+hotKeys:
+  shift-0: { shortCut: Shift-0, description: Pods,          command: pods }
+  shift-1: { shortCut: Shift-1, description: Deployments,   command: dp }
+  shift-2: { shortCut: Shift-2, description: Services,      command: svc }
+  shift-3: { shortCut: Shift-3, description: Ingresses,     command: ing }
+  shift-4: { shortCut: Shift-4, description: Nodes,         command: no }
+  shift-5: { shortCut: Shift-5, description: Events,        command: ev }
+  shift-6: { shortCut: Shift-6, description: Helm releases, command: helm }
+  shift-7: { shortCut: Shift-7, description: Namespaces,    command: ns }
+EOF
+
+  tui_write "$k9/aliases.yaml" <<'EOF'
+# devops-toolbox k9s aliases — type :<alias> in k9s
+aliases:
+  dp: deployments
+  sec: v1/secrets
+  cm: configmaps
+  jo: jobs
+  cj: cronjobs
+  crb: clusterrolebindings
+  rb: rolebindings
+  np: networkpolicies
+  pvc: persistentvolumeclaims
+EOF
+
+  # point k9s at the toolbox skin
+  if [ ! -f "$k9/config.yaml" ]; then
+    printf '# devops-toolbox k9s config\nk9s:\n  ui:\n    skin: devops-toolbox\n' > "$k9/config.yaml"
+  elif grep -qE '^[[:space:]]+skin:' "$k9/config.yaml"; then
+    sed -i -E 's/^([[:space:]]+skin:).*/\1 devops-toolbox/' "$k9/config.yaml"
+  else
+    echo "k9s: add 'skin: devops-toolbox' under k9s.ui in $k9/config.yaml to use the toolbox skin"
+  fi
+
+  # sofka: seed aliases once, then (re)write the managed skin block
+  if [ ! -f "$sf/config.toml" ]; then
+    cat > "$sf/config.toml" <<'EOF'
+# devops-toolbox sofka config — your own settings are safe here; only the marked skin block is managed.
+# Top-level options (e.g. default_namespace = "kube-system") must go ABOVE the first [table].
+
+[aliases]
+dp = "deployments"
+sec = "secrets"
+cm = "configmaps"
+jo = "jobs"
+cj = "cronjobs"
+EOF
+  fi
+  tb_sync_tui_skins init
+}
 install_dot-tmux() {
   if [ -f "$HOME/.tmux.conf" ] && ! grep -q 'devops-toolbox' "$HOME/.tmux.conf"; then
     cp "$HOME/.tmux.conf" "$HOME/.tmux.conf.bak.$(date +%s)"
@@ -469,6 +574,8 @@ EOF
 emit_banner_sh() {
   cat > "$1" <<'BANNER_EOF'
 # devops-toolbox banner + toolbox-help  (generated — re-run the installer to update)
+# Define everything below WITHOUT alias expansion, so aliases like mv='mv -i' or cat='bat' can't leak into functions.
+_tb_ea=$(shopt -p expand_aliases); shopt -u expand_aliases
 tb__c() {  # tb__c R G B fallback-256  → foreground colour escape
   if [ "${TB_TRUECOLOR:-0}" = 1 ]; then printf '\e[38;2;%s;%s;%sm' "$1" "$2" "$3"; else printf '\e[38;5;%sm' "$4"; fi
 }
@@ -526,7 +633,90 @@ toolbox-theme() {  # preview / switch theme:  toolbox-theme [name]
   touch "$f"; sed -i '/^export DEVOPS_TOOLBOX_THEME=/d' "$f"
   echo "export DEVOPS_TOOLBOX_THEME=$1" >> "$f"
   export DEVOPS_TOOLBOX_THEME=$1
+  tb_sync_tui_skins
   tb_banner
+}
+
+# ── k9s / sofka skins that follow the toolbox theme ──
+tb__hex() { printf '#%02x%02x%02x' "$1" "$2" "$3"; }
+tb_sync_tui_skins() {  # tb_sync_tui_skins [init]  — without "init", only refreshes skins the toolbox already manages
+  local mode=${1:-update} theme=${DEVOPS_TOOLBOX_THEME:-ocean} s P M D RL T W A
+  IFS='|' read -r -a s <<<"$(tb__theme "$theme")"
+  # shellcheck disable=SC2086
+  { P=$(tb__hex ${s[0]}); M=$(tb__hex ${s[3]}); D=$(tb__hex ${s[5]}); RL=$(tb__hex ${s[6]})
+    T=$(tb__hex ${s[7]}); W=$(tb__hex ${s[8]}); A=$(tb__hex ${s[9]}); }
+  local cfg="${XDG_CONFIG_HOME:-$HOME/.config}"
+  local k9="${K9S_CONFIG_DIR:-$cfg/k9s}"
+
+  if [ -f "$k9/skins/devops-toolbox.yaml" ] || { [ "$mode" = init ] && command -v k9s >/dev/null 2>&1; }; then
+    mkdir -p "$k9/skins"
+    cat > "$k9/skins/devops-toolbox.yaml" <<K9S_EOF
+# devops-toolbox k9s skin — theme: $theme (regenerated by: toolbox-theme <name>)
+k9s:
+  body: { fgColor: "$T", bgColor: default, logoColor: "$P" }
+  prompt: { fgColor: "$T", bgColor: default, suggestColor: "$RL" }
+  info: { fgColor: "$A", sectionColor: "$T" }
+  dialog:
+    fgColor: "$T"
+    bgColor: default
+    buttonFgColor: "$T"
+    buttonBgColor: "$D"
+    buttonFocusFgColor: "#0b0f17"
+    buttonFocusBgColor: "$A"
+    labelFgColor: "$A"
+    fieldFgColor: "$T"
+  frame:
+    border: { fgColor: "$RL", focusColor: "$P" }
+    menu: { fgColor: "$T", keyColor: "$A", numKeyColor: "$A" }
+    crumbs: { fgColor: "#0b0f17", bgColor: "$M", activeColor: "$A" }
+    status:
+      newColor: "$P"
+      modifyColor: "$W"
+      addColor: "#9ece6a"
+      errorColor: "#f7768e"
+      highlightColor: "$A"
+      killColor: "$RL"
+      completedColor: "$RL"
+    title: { fgColor: "$T", bgColor: default, highlightColor: "$A", counterColor: "$P", filterColor: "$W" }
+  views:
+    charts:
+      bgColor: default
+      defaultDialColors: ["$P", "#f7768e"]
+      defaultChartColors: ["$P", "#f7768e"]
+    table:
+      fgColor: "$T"
+      bgColor: default
+      cursorFgColor: "#0b0f17"
+      cursorBgColor: "$M"
+      markColor: "$A"
+      header: { fgColor: "$P", bgColor: default, sorterColor: "$A" }
+    xray: { fgColor: "$T", bgColor: default, cursorColor: "$M", graphicColor: "$P", showIcons: false }
+    yaml: { keyColor: "$P", colonColor: "$RL", valueColor: "$T" }
+    logs:
+      fgColor: "$T"
+      bgColor: default
+      indicator: { fgColor: "$A", bgColor: default }
+K9S_EOF
+  fi
+
+  local sf="$cfg/sofka/config.toml" skin extra=""
+  case "$theme" in
+    amber) skin=gruvbox-dark ;; ice) skin=nord ;; snow) skin=one-dark ;; sand) skin=flexoki-dark ;;
+    lavender) skin=dracula ;;
+    matrix) skin=monokai
+            extra=$'[skin.colors]\nblue = "#50fa50"\nsky = "#7cff7c"\nsapphire = "#3cd23c"\nlavender = "#9cff9c"\nmauve = "#50fa50"\ntext = "#b4ffb4"\n' ;;
+    *) skin=tokyo-night ;;
+  esac
+  if grep -q '^# >>> devops-toolbox skin' "$sf" 2>/dev/null || { [ "$mode" = init ] && command -v sofka >/dev/null 2>&1; }; then
+    mkdir -p "${sf%/*}"; touch "$sf"
+    awk '/^# >>> devops-toolbox skin/{skip=1} !skip{print} /^# <<< devops-toolbox skin/{skip=0}' "$sf" > "$sf.tmp" && mv "$sf.tmp" "$sf"
+    if grep -q '^\[skin\]' "$sf"; then
+      echo "sofka: your config.toml already has its own [skin]; leaving it alone" >&2
+    else
+      printf '# >>> devops-toolbox skin (follows toolbox-theme; delete this block to pick your own)\n[skin]\nname = "%s"\n%s# <<< devops-toolbox skin\n' "$skin" "$extra" >> "$sf"
+    fi
+  fi
+  return 0
 }
 tb_tag() {  # right-aligned small tag under the logo, like "© 2026 user@host"
   local text="$1" pad
@@ -608,6 +798,18 @@ toolbox-help() {
     _tb_h "kns / kctx" "switch namespace / context"
     _tb_has k9s && _tb_h "k9s" "Kubernetes TUI"
     _tb_has stern && _tb_h "stern <pod>" "tail logs from many pods"
+    _tb_has sofka && _tb_h "sofka (sf)" "Rust Kubernetes TUI; :skin, :ctx, sofka import k9s"
+  fi
+  if _tb_has k9s && [ -f "${K9S_CONFIG_DIR:-${XDG_CONFIG_HOME:-$HOME/.config}/k9s}/hotkeys.yaml" ]; then
+    _tb_s "Inside k9s"
+    _tb_h ":pod :dp :svc :ns" "jump to a view (also :sec :cm :jo :cj :np :pvc)"
+    _tb_h "Shift-0 ... Shift-7" "pods / deploy / svc / ingress / nodes / events / helm / ns"
+    _tb_h "Ctrl-L" "stern logs for the selected pod or workload"
+    _tb_h "Shift-D / Shift-I" "debug container (netshoot) / dive image (containers view)"
+    _tb_h "Shift-E / Ctrl-G" "watch events / kubectl get all (namespaces view)"
+    _tb_h "l / s / d / e" "logs / shell / describe / edit"
+    _tb_h "Shift-F / x / Ctrl-D" "port-forward / decode secret / delete"
+    _tb_h "/ ? :q" "filter / all keys / quit"
   fi
   if _tb_has dps; then
     _tb_s "Docker"
@@ -632,6 +834,7 @@ toolbox-help() {
   echo
 }
 alias toolbox-banner='tb_banner'
+eval "$_tb_ea"; unset _tb_ea
 BANNER_EOF
 }
 
@@ -761,6 +964,7 @@ else
   kctx() { if [ -n "$1" ]; then kubectl config use-context "$1"; else kubectl config get-contexts; fi; }
 fi
 command -v k9s >/dev/null && alias k9='k9s'
+command -v sofka >/dev/null && alias sf='sofka'
 EOF
     fi
     if state_has alias-docker; then cat <<'EOF'
