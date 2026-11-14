@@ -461,9 +461,82 @@ exit 0
 STATUS_EOF
   chmod +x "$1"
 }
+emit_pin_script() {
+  mkdir -p "$(dirname "$1")"
+  cat > "$1" <<'PIN_EOF'
+#!/usr/bin/env bash
+# toolbox-pin — keeps the compact DEVOPS banner pinned in a read-only pane at the top of each tmux window.
+#   toolbox-pin on | off      enable/disable everywhere (remembered)
+#   toolbox-pin toggle        show/hide in the current window   (also: Ctrl-a b)
+#   internal: run | add <window> [force] | gc
+HOME_TB="$HOME/.devops-toolbox"
+OFF_FILE="$HOME_TB/pin.off"
+ROWS=10; MIN_ROWS=26; MIN_COLS=60
+self="$HOME_TB/bin/toolbox-pin"
+
+pin_panes() {  # pin_panes [target] → pane ids of pinned panes (one window, or all with -a)
+  if [ "$1" = -a ]; then tmux list-panes -a -F '#{pane_id} #{@devops_pin}' 2>/dev/null
+  else tmux list-panes -t "$1" -F '#{pane_id} #{@devops_pin}' 2>/dev/null; fi | awk '$2==1{print $1}'
+}
+
+run() {  # the pinned pane itself: redraw every 5s and on resize
+  . "$HOME_TB/banner.sh" || exit 1
+  printf '\e[?25l'; stty -echo 2>/dev/null
+  trap 'draw' WINCH
+  trap 'printf "\e[?25h"; exit 0' TERM INT HUP
+  while :; do draw; sleep 5 & wait $!; done
+}
+draw() {
+  DEVOPS_TOOLBOX_THEME=$(sed -n 's/^# devops-toolbox tmux theme: \([a-z]*\).*/\1/p' "$HOME_TB/tmux-theme.conf" 2>/dev/null)
+  export DEVOPS_TOOLBOX_THEME=${DEVOPS_TOOLBOX_THEME:-ocean}
+  local out; out=$(tb_compact 2>/dev/null)
+  printf '\e[H%s\e[K\e[J' "${out//$'\n'/$'\e[K\n'}"
+}
+
+add() {  # add <window_id> [force]
+  local w=$1 force=$2 h W p
+  [ -z "$force" ] && [ -f "$OFF_FILE" ] && return 0
+  sleep 0.3   # let the window get its real size first
+  [ -n "$w" ] || w=$(tmux display -p '#{window_id}')
+  [ -n "$(pin_panes "$w")" ] && return 0
+  h=$(tmux display -p -t "$w" '#{window_height}'); W=$(tmux display -p -t "$w" '#{window_width}')
+  if [ -z "$force" ] && { [ "${h:-0}" -lt "$MIN_ROWS" ] || [ "${W:-0}" -lt "$MIN_COLS" ]; }; then return 0; fi
+  p=$(tmux split-window -v -b -d -l "$ROWS" -t "$w" -P -F '#{pane_id}' "$self run") || return 1
+  tmux set -p -t "$p" @devops_pin 1
+  tmux select-pane -d -t "$p"          # read-only: keystrokes never go into the banner
+}
+toggle() {
+  local w=${1:-$(tmux display -p '#{window_id}')} p
+  p=$(pin_panes "$w")
+  if [ -n "$p" ]; then tmux kill-pane -t "$p"; else add "$w" force; fi
+}
+gc() {  # close windows that only have the pinned banner left (after you exit the shell)
+  local w
+  for w in $(tmux list-windows -a -F '#{window_id}' 2>/dev/null); do
+    if [ "$(tmux list-panes -t "$w" -F '#{@devops_pin}' | grep -vc '^1$')" = 0 ]; then tmux kill-window -t "$w"; fi
+  done
+}
+
+case "${1:-}" in
+  run) run ;;
+  add) add "$2" "$3" ;;
+  toggle) toggle "$2" ;;
+  gc) gc ;;
+  off) touch "$OFF_FILE"; for p in $(pin_panes -a); do tmux kill-pane -t "$p"; done; echo "pinned banner off (toolbox-pin on to restore)" ;;
+  on)  rm -f "$OFF_FILE"
+       if [ -n "$TMUX" ] || tmux ls >/dev/null 2>&1; then
+         for w in $(tmux list-windows -a -F '#{window_id}'); do add "$w"; done
+       fi
+       echo "pinned banner on" ;;
+  *) sed -n '2,6p' "$0" | sed 's/^# \{0,1\}//' ;;
+esac
+PIN_EOF
+  chmod +x "$1"
+}
 install_tmux-bar() {
   command -v tmux >/dev/null || { echo "tmux is not installed: tick 'tmux' in CLI Utilities too"; return 1; }
   emit_status_script "$TOOLBOX_HOME/bin/toolbox-status"
+  emit_pin_script "$TOOLBOX_HOME/bin/toolbox-pin"
   tb_sync_tui_skins init
   # make ~/.tmux.conf load the theme (the toolbox's own tmux.conf already does)
   touch "$HOME/.tmux.conf"
@@ -636,7 +709,7 @@ tb__init() {
   local spec i; spec=$(tb__theme "${DEVOPS_TOOLBOX_THEME:-ocean}")
   IFS='|' read -r -a TB_STOPS <<<"$spec"
   # shellcheck disable=SC2086
-  { TB_SEP=$(tb__c ${TB_STOPS[6]}); TB_G=$(tb__c ${TB_STOPS[7]}); TB_W=$(tb__c ${TB_STOPS[8]}); TB_P=$(tb__c ${TB_STOPS[9]}); }
+  { TB_SEP=$(tb__c ${TB_STOPS[6]}); TB_G=$(tb__c ${TB_STOPS[7]}); TB_W=$(tb__c ${TB_STOPS[8]}); TB_P=$(tb__c ${TB_STOPS[9]}); TB_A=$TB_P; }
   TB_D=$'\e[2m'; TB_B=$'\e[1m'; TB_R=$'\e[0m'
   local w; w=$({ stty size </dev/tty; } 2>/dev/null | cut -d" " -f2); w=${w:-${COLUMNS:-80}}; [ "$w" -gt 78 ] && w=78; [ "$w" -lt 40 ] && w=40
   TB_LINE=$(printf '%*s' $((w - 2)) '' | tr ' ' '=')
@@ -763,6 +836,11 @@ set -g pane-border-style "fg=$RL"
 set -g pane-active-border-style "fg=$P"
 set -g message-style "bg=$D,fg=#ffffff"
 set -g mode-style "bg=$M,fg=#0b0f17"
+# pinned compact banner in a read-only top pane of every window (Ctrl-a b toggles; toolbox-pin on|off)
+bind b run-shell -b "\$HOME/.devops-toolbox/bin/toolbox-pin toggle #{window_id}"
+set-hook -g after-new-session "run-shell -b '\$HOME/.devops-toolbox/bin/toolbox-pin add #{window_id}'"
+set-hook -g after-new-window  "run-shell -b '\$HOME/.devops-toolbox/bin/toolbox-pin add #{window_id}'"
+set-hook -g pane-exited       "run-shell -b '\$HOME/.devops-toolbox/bin/toolbox-pin gc'"
 TMUX_EOF
     command -v tmux >/dev/null 2>&1 && tmux source-file "$tt" >/dev/null 2>&1
   fi
@@ -794,41 +872,59 @@ tb_tag() {  # right-aligned small tag under the logo, like "© 2026 user@host"
 tb_rule() { printf '  %s%s%s\n' "$TB_SEP" "$TB_LINE" "$TB_R"; }
 tb_text() { printf '  %s%s%s\n' "$TB_G" "$*" "$TB_R"; }
 
-tb_banner() {
-  tb__init
-  local host user kernel up s d h m shell os arch cpus load mem disk ip extra=""
-  host=${HOSTNAME%%.*}; user=${USER:-$(id -un)}
-  kernel=$(uname -r | cut -d- -f1); arch=$(uname -m)
+tb__stats() {  # fills TB_* stat variables used by the banner and the pinned compact banner
+  local s
+  TB_HOST=${HOSTNAME%%.*}; TB_USER=${USER:-$(id -un)}
+  TB_KERNEL=$(uname -r | cut -d- -f1); TB_ARCH=$(uname -m)
   s=$(cut -d. -f1 /proc/uptime 2>/dev/null || echo 0)
-  d=$((s / 86400)); h=$((s % 86400 / 3600)); m=$((s % 3600 / 60))
-  up="$d day$([ "$d" = 1 ] || echo s); $h hour$([ "$h" = 1 ] || echo s); $m min"
-  shell="Bash ${BASH_VERSINFO[0]}.${BASH_VERSINFO[1]}"
-  os=$( . /etc/os-release 2>/dev/null; echo "${PRETTY_NAME:-Linux}")
-  cpus=$(nproc 2>/dev/null || echo "?"); load=$(cut -d' ' -f1-3 /proc/loadavg 2>/dev/null)
-  mem=$(awk '/^MemTotal:/ {t=$2} /^MemAvailable:/ {a=$2} END {if (t) printf "%.1fG/%.1fG", (t-a)/1048576, t/1048576}' /proc/meminfo 2>/dev/null)
-  disk=$(df -h / 2>/dev/null | awk 'NR==2 {print $3 "/" $2 " (" $5 ")"}')
-  ip=$(hostname -I 2>/dev/null | awk '{print $1}')
-  [ -n "$ip" ] || ip=$(ip -4 route get 1.1.1.1 2>/dev/null | awk '{for(i=1;i<NF;i++) if($i=="src"){print $(i+1); exit}}')
+  TB_UD=$((s / 86400)); TB_UH=$((s % 86400 / 3600)); TB_UM=$((s % 3600 / 60))
+  TB_OS=$( . /etc/os-release 2>/dev/null; echo "${PRETTY_NAME:-Linux}")
+  TB_CPUS=$(nproc 2>/dev/null || echo "?"); TB_LOAD=$(cut -d' ' -f1-3 /proc/loadavg 2>/dev/null)
+  TB_MEM=$(awk '/^MemTotal:/ {t=$2} /^MemAvailable:/ {a=$2} END {if (t) printf "%.1fG/%.1fG", (t-a)/1048576, t/1048576}' /proc/meminfo 2>/dev/null)
+  TB_DISK=$(df -h / 2>/dev/null | awk 'NR==2 {print $3 "/" $2 " (" $5 ")"}')
+  TB_IP=$(hostname -I 2>/dev/null | awk '{print $1}')
+  [ -n "$TB_IP" ] || TB_IP=$(ip -4 route get 1.1.1.1 2>/dev/null | awk '{for(i=1;i<NF;i++) if($i=="src"){print $(i+1); exit}}')
+  local kc=${KUBECONFIG%%:*}; [ -f "$kc" ] || kc="$HOME/.kube/config"
+  TB_CTX=$(sed -n 's/^current-context:[[:space:]]*//p' "$kc" 2>/dev/null | tr -d '"' | head -1)
+}
+
+tb_welcome() {
+  printf '  %sWelcome to %s%s%s%s, %s! Your DevOps toolbox is ready.%s\n' "$TB_W" "$TB_B" "$TB_HOST" "$TB_R" "$TB_W" "$TB_USER" "$TB_R"
+  printf "  %sTo get a list of toolbox commands, type %s'toolbox-help'%s%s.%s\n\n" "$TB_W" "$TB_P$TB_B" "$TB_R" "$TB_W" "$TB_R"
+}
+
+tb_banner() {  # tb_banner [welcome]  — full banner, or just the welcome lines
+  tb__init; tb__stats
+  if [ "$1" = welcome ]; then echo; tb_welcome; return; fi
+  local up extra=""
+  up="$TB_UD day$([ "$TB_UD" = 1 ] || echo s); $TB_UH hour$([ "$TB_UH" = 1 ] || echo s); $TB_UM min"
   if command -v docker >/dev/null 2>&1 && [ -r /var/run/docker.sock ] && [ -w /var/run/docker.sock ]; then
     extra+="Docker: $(timeout 2 docker ps -q 2>/dev/null | wc -l) running; "
   fi
-  if command -v kubectl >/dev/null 2>&1; then
-    extra+="K8s: $(timeout 2 kubectl config current-context 2>/dev/null || echo none); "
-  fi
+  command -v kubectl >/dev/null 2>&1 && extra+="K8s: ${TB_CTX:-none}; "
 
   echo
   tb_logo
-  tb_tag "© $(date +%Y) $user@$host"
+  tb_tag "© $(date +%Y) $TB_USER@$TB_HOST"
   tb_rule
-  tb_text "System Information: Kernel: $kernel; Uptime: $up; Shell: $shell"
+  tb_text "System Information: Kernel: $TB_KERNEL; Uptime: $up; Shell: Bash ${BASH_VERSINFO[0]}.${BASH_VERSINFO[1]}"
   tb_rule
-  tb_text "$os * $arch * $cpus CPU * Load: $load"
-  tb_text "Memory: ${mem:-?}; Disk(/): ${disk:-?}; IP: ${ip:-?}"
+  tb_text "$TB_OS * $TB_ARCH * $TB_CPUS CPU * Load: $TB_LOAD"
+  tb_text "Memory: ${TB_MEM:-?}; Disk(/): ${TB_DISK:-?}; IP: ${TB_IP:-?}"
   [ -n "$extra" ] && tb_text "${extra%; }"
   tb_rule
   echo
-  printf '  %sWelcome to %s%s%s%s, %s! Your DevOps toolbox is ready.%s\n' "$TB_W" "$TB_B" "$host" "$TB_R" "$TB_W" "$user" "$TB_R"
-  printf "  %sTo get a list of toolbox commands, type %s'toolbox-help'%s%s.%s\n\n" "$TB_W" "$TB_P$TB_B" "$TB_R" "$TB_W" "$TB_R"
+  tb_welcome
+}
+
+tb_compact() {  # exactly 10 rows: logo (6) + tag + rule + 2 live lines — used by the pinned pane
+  tb__init; tb__stats
+  local os=${TB_OS% LTS*}
+  tb_logo
+  tb_tag "© $(date +%Y) $TB_USER@$TB_HOST"
+  tb_rule
+  tb_text "Kernel $TB_KERNEL · up ${TB_UD}d ${TB_UH}h ${TB_UM}m · load ${TB_LOAD%% *} · $TB_CPUS CPU · $os"
+  printf '  %sMem %s · Disk %s · IP %s%s%s' "$TB_G" "${TB_MEM:-?}" "${TB_DISK:-?}" "${TB_IP:-?}" "${TB_CTX:+ · $TB_A⎈ $TB_CTX}" "$TB_R"
 }
 
 _tb_s() { printf '\n  %s%s%s%s\n' "$TB_P" "$TB_B" "$1" "$TB_R"; }
@@ -902,6 +998,9 @@ toolbox-help() {
     _tb_h "Ctrl-a  | / -" "split side-by-side / top-bottom"
     _tb_h "Ctrl-a  h j k l" "move between panes (H J K L resize)"
     _tb_h "Ctrl-a  [" "scroll / copy mode (q to leave)"
+    _tb_h "Ctrl-a  b" "hide / show the pinned banner in this window"
+    _tb_h "Ctrl-a  z" "zoom current pane full-screen (again to unzoom)"
+    _tb_h "toolbox-pin off | on" "pinned banner off / on everywhere (remembered)"
     _tb_h "DEVOPS_TOOLBOX_TMUX=0" "turn off auto-tmux on SSH (in custom.sh)"
   fi
   _tb_s "Monitoring"
@@ -1387,7 +1486,12 @@ if [ -z "$DEVOPS_TOOLBOX_BANNER_SHOWN" ]; then
   export DEVOPS_TOOLBOX_BANNER_SHOWN=1
   [ -n "$TMUX" ] && tmux set-environment DEVOPS_TOOLBOX_BANNER_SHOWN 1 2>/dev/null
   case "$DEVOPS_TOOLBOX_BANNER" in
-    1|toolbox) declare -F tb_banner >/dev/null && tb_banner ;;
+    1|toolbox)
+      if [ -n "$TMUX" ] && [ -x "$HOME/.devops-toolbox/bin/toolbox-pin" ] && [ ! -f "$HOME/.devops-toolbox/pin.off" ]          && [ "$(tmux display -p '#{window_height}' 2>/dev/null || echo 0)" -ge 26 ]; then
+        declare -F tb_banner >/dev/null && tb_banner welcome    # the logo is already pinned above
+      else
+        declare -F tb_banner >/dev/null && tb_banner
+      fi ;;
     fastfetch) command -v fastfetch >/dev/null && fastfetch 2>/dev/null ;;
   esac
 fi

@@ -140,7 +140,15 @@ The **tmux top bar** item keeps your theme visible all the time. A themed status
 
 - **Contents:** hostname, windows, IP, load, memory, Kubernetes context and time, refreshed every 5 seconds. `toolbox-theme <name>` recolours it live, together with the banner, k9s and sofka.
 - **Auto-attach:** every SSH login joins a tmux session called `main`, so the bar is always there. If your connection drops, your work keeps running; SSH back in and you're where you left off.
-- **Banner:** shows once when the session starts, not in every new window.
+- **Pinned banner:** every tmux window also gets the compact DEVOPS banner in a read-only pane at the top: the logo plus 2 live lines (kernel, uptime, load, memory, disk, IP and Kubernetes context), refreshed every 5 seconds. Because the logo is already pinned, the shell below only prints the welcome lines.
+
+  <p align="center"><img src="assets/pinned-banner.png" alt="Pinned DEVOPS banner above the shell inside tmux" width="860"></p>
+
+  - `Ctrl-a b` hides or shows it in the current window. `Ctrl-a z` zooms your pane to full screen.
+  - `toolbox-pin off` / `toolbox-pin on` turns it off or on everywhere, and the choice is remembered.
+  - It's skipped automatically when the window is smaller than 26 rows or 60 columns; the thin top bar still shows.
+  - Typing never goes into the banner pane, and exiting your shell closes the window as usual.
+- **Banner:** if the pinned banner is off or the screen is small, the full banner shows once when the session starts, not in every new window.
 - **Safe by design:** only the first shell of an SSH login attaches; nested shells, `bash -c` and VS Code terminals never do. If tmux ever fails to start, you still get a normal shell.
 - **Turn auto-attach off:** add `export DEVOPS_TOOLBOX_TMUX=0` to `~/.devops-toolbox/custom.sh`.
 
@@ -153,6 +161,8 @@ Keys (prefix `Ctrl-a`):
 | `Ctrl-a` <code>&#124;</code> / `-` | Split side by side / top and bottom |
 | `Ctrl-a` `h` `j` `k` `l` | Move between panes (`H` `J` `K` `L` to resize) |
 | `Ctrl-a` `[` | Scroll / copy mode (`q` to leave) |
+| `Ctrl-a` `b` | Hide / show the pinned banner in this window |
+| `Ctrl-a` `z` | Zoom the current pane to full screen (again to restore) |
 
 ## k9s and sofka
 
