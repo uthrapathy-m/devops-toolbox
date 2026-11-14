@@ -230,6 +230,27 @@ The toolbox's k3s item writes the kubeconfig to `~/.kube/config` only if you don
 
 The join token works like a cluster password. Don't paste it into tickets or chat.
 
+## Windows (PowerShell + Windows Terminal)
+
+The same banner, themes and alias packs for your own Windows PC, in PowerShell 5.1 and 7:
+
+```powershell
+irm https://raw.githubusercontent.com/uthrapathy-m/devops-toolbox/main/install-toolbox.ps1 | iex
+```
+
+- **Menus:** pick a profile (minimal, core, k8s, cloud, everything, custom), tick single items, pick a theme. Tools are installed with **winget**; anything already installed is skipped.
+- **Banner + pinned pane:** every new PowerShell tab in Windows Terminal gets a 10-row pane at the top with the compact banner (date/time and live stats, redrawn every 5 s). It closes with its tab and hides while `ssh` runs. `toolbox-pin` toggles it; `toolbox-pin off` / `on` is remembered.
+- **Themes:** the same 7 themes, plus matching Windows Terminal colour schemes ("DevOps Toolbox Ocean", ...). `toolbox-theme amber` changes both. `settings.json` is backed up first.
+- **Aliases:** the Linux packs, except that git commit/push/log are `gcmsg`, `gpush`, `glog` (`gc`, `gp`, `gl` are built-in PowerShell aliases), and `ls`/`cat` are left alone (`ll`, `la`, `lt`, `bcat` instead). Run `toolbox-help` for the list.
+- **Files:** `~\.devops-toolbox	oolbox.ps1` (regenerated), `custom.ps1` (yours, never overwritten), one line in your PowerShell profile.
+
+```powershell
+.\install-toolbox.ps1 -Profile k8s -Theme ice -Yes   # no menus
+.\install-toolbox.ps1 -List                          # catalog
+.\install-toolbox.ps1 -DryRun                        # show what would happen
+.\install-toolbox.ps1 -Uninstall                     # remove (winget tools stay)
+```
+
 ## Fonts (install on your own computer)
 
 Your **SSH client** renders the text, so fonts belong on the computer you SSH *from*, not on the server. The banner works with any monospace font. A Nerd Font makes the block letters crisper and adds the icons used by eza, starship and lazygit.
