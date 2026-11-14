@@ -1118,6 +1118,9 @@ main() {
   printf "\n  ${B}${GRN}All set!${R} Activate now with:  ${B}${CYN}exec bash${R}\n"
   printf "  ${DIM}Your own aliases → ~/.devops-toolbox/custom.sh · Banner: DEVOPS_TOOLBOX_BANNER=1|fastfetch|0 · Commands → toolbox-help${R}\n"
   printf "  ${DIM}Re-run any time to add tools · --upgrade to update · --uninstall to remove${R}\n\n"
+  printf "  ${YLW}Tip:${R} fonts render on ${B}your${R} computer, not the server. For the best banner + icons, run there once:\n"
+  printf "    ${DIM}Windows:${R}       irm https://raw.githubusercontent.com/$TOOLBOX_REPO/main/install-fonts.ps1 | iex\n"
+  printf "    ${DIM}macOS/Linux:${R}   curl -fsSL https://raw.githubusercontent.com/$TOOLBOX_REPO/main/install-fonts.sh | bash\n\n"
   [ "$PKG" ] && [[ " ${RESULT_OK[*]} " == *" docker "* ]] && [ "$(id -u)" -ne 0 ] && warn "Log out and back in to use docker without sudo."
   return 0
 }

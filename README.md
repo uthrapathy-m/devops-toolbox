@@ -52,6 +52,30 @@ Tip: give each environment its own colour (for example, `matrix` on prod and `oc
 - `toolbox-banner` shows the banner again.
 - `DEVOPS_TOOLBOX_BANNER` controls what appears at login: `1` for this banner (default), `fastfetch` for the detailed fastfetch view, or `0` for nothing. Set it in `~/.devops-toolbox/custom.sh`.
 
+## Fonts (install on your own computer)
+
+Your **SSH client** renders the text, so fonts belong on the computer you SSH *from*, not on the server. The banner works with any monospace font. A Nerd Font makes the block letters crisper and adds the icons used by eza, starship and lazygit.
+
+Both scripts install **CaskaydiaMono Nerd Font** (Cascadia Mono) and **JetBrainsMono Nerd Font** for your user only; no admin rights are needed.
+
+**Windows** (PowerShell). The script can also set the Windows Terminal default font for you, and it backs up `settings.json` first:
+```powershell
+irm https://raw.githubusercontent.com/uthrapathy-m/devops-toolbox/main/install-fonts.ps1 | iex
+```
+
+**macOS / Linux desktop:**
+```bash
+curl -fsSL https://raw.githubusercontent.com/uthrapathy-m/devops-toolbox/main/install-fonts.sh | bash
+```
+
+Then choose **`JetBrainsMono Nerd Font Mono`** or **`CaskaydiaMono Nerd Font Mono`** in your terminal's font settings (Windows Terminal, PuTTY, iTerm2, GNOME Terminal, VS Code and others). Restart the terminal afterwards.
+
+| Option | Effect |
+|---|---|
+| `-SetDefault jetbrains\|cascadia\|none` (Windows, file mode) | Set or skip the Windows Terminal font without being asked |
+| `$env:TOOLBOX_FONT = 'jetbrains'` (Windows, before the one-liner) | Same as above when using `irm \| iex` |
+| `--dry-run` / `-DryRun` | Download and list the fonts without installing anything |
+
 ## How it works
 
 1. **Pick a profile**: Minimal, Core CLI, K8s Ops, Cloud, Everything or Custom.
