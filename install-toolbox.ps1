@@ -209,7 +209,7 @@ function global:tb_wt_files {
     "$env:LOCALAPPDATA\Packages\Microsoft.WindowsTerminalPreview_8wekyb3d8bbwe\LocalState\settings.json",
     "$env:LOCALAPPDATA\Microsoft\Windows Terminal\settings.json") | Where-Object { Test-Path $_ }
 }
-function global:tb_wt_apply([string]$Theme, [switch]$Remove) {
+function global:tb_wt_apply([string]$Theme, [switch]$Remove, [string[]]$UseInProfiles = @()) {
   # Adds the 7 "DevOps Toolbox <Theme>" schemes and makes one the default for all profiles.
   # Profiles that set their own colorScheme keep it. -Remove takes everything out again.
   $done = 0
@@ -227,6 +227,24 @@ function global:tb_wt_apply([string]$Theme, [switch]$Remove) {
       }
       $json | Add-Member -NotePropertyName schemes -NotePropertyValue $schemes -Force
       if (-not $json.profiles.defaults) { $json.profiles | Add-Member -NotePropertyName defaults -NotePropertyValue ([pscustomobject]@{ }) -Force }
+      # profiles with their own scheme: switch the ones asked for, keep toolbox ones in step, restore on -Remove
+      $orig = Join-Path $global:TB_Home 'wt-profiles.txt'
+      $saved = @{}; if (Test-Path $orig) { foreach ($l in Get-Content $orig) { $kv = $l -split '\|', 2; if ($kv.Count -eq 2) { $saved[$kv[0]] = $kv[1] } } }
+      foreach ($pr in @($json.profiles.list)) {
+        if (-not $pr) { continue }
+        $cs = "$($pr.colorScheme)"; $g = "$($pr.guid)"
+        if (-not $Remove -and $UseInProfiles -contains $g -and $cs -notlike 'DevOps Toolbox *') {
+          if ($cs -and -not $saved.ContainsKey($g)) { Add-Content -Path $orig -Value "$g|$cs"; $saved[$g] = $cs }
+          $cs = 'DevOps Toolbox'
+        }
+        if ($cs -notlike 'DevOps Toolbox*') { continue }
+        if ($Remove) {
+          if ($saved.ContainsKey($g)) { $pr | Add-Member -NotePropertyName colorScheme -NotePropertyValue $saved[$g] -Force }
+          else { $pr.PSObject.Properties.Remove('colorScheme') }
+        } else {
+          $pr | Add-Member -NotePropertyName colorScheme -NotePropertyValue ('DevOps Toolbox ' + (tb_title $Theme)) -Force
+        }
+      }
       $d = $json.profiles.defaults
       if ($Remove) {
         if ("$($d.colorScheme)" -like 'DevOps Toolbox *') { $d.PSObject.Properties.Remove('colorScheme') }
@@ -655,6 +673,341 @@ try {
 } finally { Remove-Item $pidFile -ErrorAction SilentlyContinue }
 '@
 
+# Git Bash module (~/.devops-toolbox/gitbash.sh). @BLK@ @DOT@ @COPY@ @BULLET@ become symbols when written.
+$GitBashSrc = @'
+#@HEADER@
+# Your own aliases and functions always win: the toolbox only adds names that are not defined yet.
+case $- in *i*) ;; *) return 0 ;; esac
+_tb_ea=0; shopt -q expand_aliases && _tb_ea=1; shopt -u expand_aliases   # your aliases (cat, ls, grep...) must not leak into these functions
+# Process starts are slow in Git Bash, so this file sticks to bash built-ins wherever it can.
+
+_tb_has() { command -v "$1" >/dev/null 2>&1; }
+_tb_defined() { alias "$1" >/dev/null 2>&1 || declare -F "$1" >/dev/null 2>&1; }
+_tb_alias() { _tb_defined "$1" || alias "$1=$2"; }
+_tb_pack() { case " $TB_PACKS " in *" $1 "*) return 0 ;; esac; return 1; }
+_tb_winpath() { cygpath -w "$1"; }
+
+# Settings are shared with PowerShell: every  $env:NAME = 'value'  line in custom.ps1 is exported here too.
+tb_load_settings() {
+  local f="$TB_HOME/custom.ps1" line re=$'^[ \t]*\\$env:([A-Za-z_][A-Za-z0-9_]*)[ \t]*=[ \t]*\'([^\']*)\''
+  [ -f "$f" ] || return 0
+  while IFS= read -r line || [ -n "$line" ]; do
+    line=${line%$'\r'}; line=${line#$'\xef\xbb\xbf'}
+    [[ $line =~ $re ]] && export "${BASH_REMATCH[1]}=${BASH_REMATCH[2]}"
+  done < "$f"
+}
+tb_save_setting() {  # tb_save_setting NAME value  -> custom.ps1 (read by PowerShell and Git Bash)
+  local f="$TB_HOME/custom.ps1"
+  mkdir -p "$TB_HOME"; touch "$f"
+  sed -i "/^[[:space:]]*\$env:$1[[:space:]]*=/d" "$f"
+  printf "\$env:%s = '%s'\r\n" "$1" "$2" >> "$f"
+  export "$1=$2"
+}
+tb_load_settings
+
+# ---------------------------------------------------------------- banner
+tb_c() { local IFS=' '; set -- $1; printf '\e[38;2;%s;%s;%sm' "$1" "$2" "$3"; }
+_tb_cv() { local IFS=' ' v=$1; set -- $2; printf -v "$v" '\e[38;2;%s;%s;%sm' "$1" "$2" "$3"; }   # no subshell
+tb_hex() { printf '%d;%d;%d' "0x${1:1:2}" "0x${1:3:2}" "0x${1:5:2}"; }
+tb_init() {
+  local t=${DEVOPS_TOOLBOX_THEME:-ocean} w
+  [ -n "${TB_THEME[$t]}" ] || t=ocean
+  TB_CUR=$t
+  IFS='|' read -r -a TB_STOPS <<< "${TB_THEME[$t]}"
+  _tb_cv TB_SEP "${TB_STOPS[6]}"; _tb_cv TB_G "${TB_STOPS[7]}"; _tb_cv TB_W "${TB_STOPS[8]}"; _tb_cv TB_P "${TB_STOPS[9]}"
+  TB_D=$'\e[2m'; TB_B=$'\e[1m'; TB_R=$'\e[0m'
+  w=${COLUMNS:-0}; [ "$w" -gt 0 ] || { read -r _ w < <(stty size 2>/dev/null); w=${w:-80}; }
+  [ "$w" -gt 78 ] && w=78; [ "$w" -lt 40 ] && w=40
+  printf -v TB_LINE '%*s' $((w - 2)) ''; TB_LINE=${TB_LINE// /=}
+}
+tb_os() {  # Windows name + build, cached for a day (reg.exe is slow-ish)
+  local f="$TB_HOME/cache/os.txt" t=0
+  [ -s "$f.time" ] && read -r t < "$f.time"
+  if [ ! -s "$f" ] || [ $((EPOCHSECONDS - ${t:-0})) -gt 86400 ]; then
+    mkdir -p "$TB_HOME/cache"
+    MSYS_NO_PATHCONV=1 reg.exe query 'HKLM\SOFTWARE\Microsoft\Windows NT\CurrentVersion' 2>/dev/null | tr -d '\r' | awk '
+      $1 == "ProductName" { n = $0; sub(/^ *ProductName +REG_SZ +/, "", n) }
+      $1 == "DisplayVersion" { v = $3 }
+      $1 == "CurrentBuild" { b = $3 }
+      $1 == "UBR" { u = strtonum($3) }
+      END { if (b + 0 >= 22000) sub(/Windows 10/, "Windows 11", n); printf "%s %s|%s.%s\n", n, v, b, u }' > "$f"
+    echo "$EPOCHSECONDS" > "$f.time"
+  fi
+  IFS='|' read -r TB_OS TB_BUILD < "$f"
+}
+tb_stats() {
+  local s k v t f kc line a
+  TB_USER=${USERNAME:-$USER}; TB_HOST=${COMPUTERNAME:-$HOSTNAME}
+  read -r s _ < /proc/uptime; s=${s%.*}
+  TB_UD=$((s / 86400)); TB_UH=$((s % 86400 / 3600)); TB_UM=$((s % 3600 / 60))
+  TB_CPUS=${NUMBER_OF_PROCESSORS:-?}
+  t=0; f=0
+  while read -r k v _; do case $k in MemTotal:) t=$v ;; MemFree:) f=$v; break ;; esac; done < /proc/meminfo
+  TB_MEM='?'; [ "$t" -gt 0 ] && printf -v TB_MEM '%d.%dG/%d.%dG' $(((t - f) / 1048576)) $(((t - f) % 1048576 * 10 / 1048576)) $((t / 1048576)) $((t % 1048576 * 10 / 1048576))
+  TB_DISK='?'
+  { read -r _; read -r -a a; } < <(df -h / 2>/dev/null)    # the drive name can contain spaces, so count from the end
+  [ "${#a[@]}" -ge 5 ] && TB_DISK="${a[-4]}/${a[-5]} (${a[-2]})"
+  TB_IP='?'
+  while read -r -a a; do
+    [ "${a[0]}" = 0.0.0.0 ] && [ "${a[1]}" = 0.0.0.0 ] && { TB_IP=${a[3]%$'\r'}; break; }
+  done < <(MSYS_NO_PATHCONV=1 route.exe print -4 0.0.0.0 2>/dev/null)
+  kc=${KUBECONFIG%%;*}; case $kc in [A-Za-z]:\\*|[A-Za-z]:/*) kc="/${kc:0:1}/${kc:3}"; kc=${kc//\\//} ;; esac
+  [ -f "$kc" ] || kc="$HOME/.kube/config"
+  TB_CTX=''
+  if [ -f "$kc" ]; then
+    while IFS= read -r line; do
+      case $line in current-context:*) line=${line#current-context:}; line=${line# }; line=${line%$'\r'}; TB_CTX=${line//\"/}; break ;; esac
+    done < "$kc"
+  fi
+  tb_os
+}
+tb_logo() { local i c; for i in 0 1 2 3 4 5; do _tb_cv c "${TB_STOPS[$i]}"; printf '  %s%s%s\n' "$c" "${TB_LOGO[$i]}" "$TB_R"; done; }
+tb_rule() { printf '  %s%s%s\n' "$TB_SEP" "$TB_LINE" "$TB_R"; }
+tb_text() { printf '  %s%s%s\n' "$TB_G" "$*" "$TB_R"; }
+tb_welcome() {
+  printf '  %sWelcome to %s%s%s%s, %s! Your DevOps toolbox is ready.%s\n' "$TB_W" "$TB_B" "$TB_HOST" "$TB_R" "$TB_W" "$TB_USER" "$TB_R"
+  printf "  %sTo get a list of toolbox commands, type %s'toolbox-help'%s%s.%s\n\n" "$TB_W" "$TB_P$TB_B" "$TB_R" "$TB_W" "$TB_R"
+}
+tb_banner() {  # tb_banner [welcome]
+  tb_init; tb_stats
+  if [ "$1" = welcome ]; then echo; tb_welcome; return; fi
+  local up tag pad yr ds=s hs=s
+  [ "$TB_UD" = 1 ] && ds=''; [ "$TB_UH" = 1 ] && hs=''
+  up="$TB_UD day$ds; $TB_UH hour$hs; $TB_UM min"
+  printf -v yr '%(%Y)T' -1
+  tag="@COPY@ $yr $TB_USER@$TB_HOST"; pad=$((57 - ${#tag})); [ "$pad" -lt 2 ] && pad=2
+  echo
+  tb_logo
+  printf '%*s%s%s%s\n' "$pad" '' "$TB_D" "$tag" "$TB_R"
+  tb_rule
+  tb_text "System Information: Build: $TB_BUILD; Uptime: $up; Shell: Git Bash ${BASH_VERSINFO[0]}.${BASH_VERSINFO[1]}"
+  tb_rule
+  tb_text "$TB_OS * ${PROCESSOR_ARCHITECTURE:-x86_64} * $TB_CPUS CPU"
+  tb_text "Memory: ${TB_MEM:-?}; Disk(C:): ${TB_DISK:-?}; IP: ${TB_IP:-?}"
+  _tb_has kubectl && tb_text "K8s: ${TB_CTX:-none}"
+  tb_rule
+  echo
+  tb_welcome
+}
+toolbox-banner() { tb_banner; }
+
+toolbox-theme() {  # toolbox-theme [name]  (shared with PowerShell; also recolours Windows Terminal)
+  local t i bg fg gr
+  if [ -z "$1" ]; then
+    echo
+    for t in $TB_THEME_NAMES; do
+      DEVOPS_TOOLBOX_THEME=$t tb_init
+      read -r bg fg gr <<< "${TB_WTPRE[$t]}"
+      printf '  %s %s%-9s%s ' "$([ "$t" = "${DEVOPS_TOOLBOX_THEME:-ocean}" ] && echo '@BULLET@' || echo ' ')" "$TB_B" "$t" "$TB_R"
+      for i in 0 1 2 3 4 5; do printf '%s@BLK@@BLK@' "$(tb_c "${TB_STOPS[$i]}")"; done
+      printf '%s %stext%s %swelcome%s %s%shelp%s  ' "$TB_R" "$TB_G" "$TB_R" "$TB_W" "$TB_R" "$TB_P" "$TB_B" "$TB_R"
+      printf '\e[48;2;%sm\e[38;2;%sm $ \e[38;2;%smkubectl \e[38;2;%smget pods \e[0m\n' "$(tb_hex "$bg")" "$(tb_hex "$fg")" "$(tb_hex "$gr")" "$(tb_hex "$fg")"
+    done
+    printf '\n  current: %s @DOT@ switch: toolbox-theme <name> (also PowerShell and Windows Terminal)\n\n' "${DEVOPS_TOOLBOX_THEME:-ocean}"
+    return
+  fi
+  [ -n "${TB_THEME[$1]}" ] || { echo "unknown theme '$1' (choose: $TB_THEME_NAMES)"; return 1; }
+  tb_save_setting DEVOPS_TOOLBOX_THEME "$1"
+  if [ "$DEVOPS_TOOLBOX_WT" != 0 ] && [ -f "$TB_HOME/toolbox.ps1" ]; then
+    ( MSYS_NO_PATHCONV=1 powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass -Command \
+        "\$global:TB_LibOnly = \$true; . '$(_tb_winpath "$TB_HOME/toolbox.ps1")'; \$null = tb_wt_apply '$1'" >/dev/null 2>&1 & )
+  fi
+  tb_banner
+}
+complete -W "$TB_THEME_NAMES" toolbox-theme
+
+# ---------------------------------------------------------------- pinned banner (Windows Terminal pane)
+# Same pane as in PowerShell (pin.ps1): 10 rows above this shell, closes when the shell exits,
+# hides while ssh runs. State files are keyed by this shell's Windows process id.
+read -r TB_WINPID < "/proc/$$/winpid" 2>/dev/null; TB_WINPID=${TB_WINPID:-$$}
+_tb_winpid() { echo "$TB_WINPID"; }
+tb_pin_active() { [ -f "$TB_HOME/cache/pin-$TB_WINPID.pid" ]; }
+tb_pin_show() {  # tb_pin_show [-q]
+  local q=$1 h w size wp pin
+  if [ -z "$WT_SESSION" ]; then [ "$q" = -q ] || echo "  The pinned banner needs Windows Terminal."; return 1; fi
+  tb_pin_active && return 0
+  read -r h w < <(stty size 2>/dev/null); h=${h:-0}; w=${w:-0}
+  if [ "$h" -lt 26 ] || [ "$w" -lt 60 ]; then [ "$q" = -q ] || echo "  Window too small for the pinned banner (needs 60x26, this is ${w}x$h)."; return 1; fi
+  pin="$TB_HOME/pin.ps1"; [ -f "$pin" ] || return 1
+  # the new pane opens below and is swapped to the top; the swap keeps slot sizes, so it gets the big share
+  size=$(awk -v h="$h" 'BEGIN { s = 1 - 10.6 / h; if (s > 0.95) s = 0.95; if (s < 0.5) s = 0.5; printf "%.3f", s }')
+  wp=$(_tb_winpid)
+  mkdir -p "$TB_HOME/cache"; rm -f "$TB_HOME/cache/pin-$wp.stop"
+  local args=(-w 0 sp -H -s "$size")
+  [ -n "$WT_PROFILE_ID" ] && args+=(-p "$WT_PROFILE_ID")
+  args+=(--title devops-toolbox powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass -File "$(_tb_winpath "$pin")" -Watch "$wp" ';' swap-pane up ';' move-focus down)
+  ( MSYS_NO_PATHCONV=1 wt.exe "${args[@]}" >/dev/null 2>&1 & )
+  return 0
+}
+tb_pin_hide() {  # tb_pin_hide [wait]
+  local wp; wp=$(_tb_winpid)
+  tb_pin_active || return 0
+  : > "$TB_HOME/cache/pin-$wp.stop"
+  if [ "$1" = wait ]; then local i; for i in 1 2 3 4 5 6 7 8 9 10; do tb_pin_active || break; sleep 0.2; done; fi
+}
+toolbox-pin() {  # toolbox-pin [toggle|show|hide|on|off]
+  case "${1:-toggle}" in
+    show) tb_pin_show ;;
+    hide) tb_pin_hide ;;
+    on)   tb_save_setting DEVOPS_TOOLBOX_PIN 1; tb_pin_show; echo "  Pinned banner: on for new tabs." ;;
+    off)  tb_save_setting DEVOPS_TOOLBOX_PIN 0; tb_pin_hide; echo "  Pinned banner: off (toolbox-pin on to bring it back)." ;;
+    *)    if tb_pin_active; then tb_pin_hide; else tb_pin_show; fi ;;
+  esac
+}
+complete -W "toggle show hide on off" toolbox-pin
+if ! _tb_defined ssh; then
+  ssh() {
+    local was=0 rc
+    tb_pin_active && { was=1; tb_pin_hide wait; }
+    command ssh "$@"; rc=$?
+    [ "$was" = 1 ] && tb_pin_show -q
+    return $rc
+  }
+fi
+
+# ---------------------------------------------------------------- help
+_tb_s() { printf '\n  %s%s%s%s\n' "$TB_P" "$TB_B" "$1" "$TB_R"; }
+_tb_h() { printf '    %s%-26s%s %s%s%s\n' "$TB_G" "$1" "$TB_R" "$TB_D" "$2" "$TB_R"; }
+_tb_any() { local n; for n in "$@"; do _tb_defined "$n" || _tb_has "$n" || return 1; done; }
+toolbox-help() {
+  tb_init
+  printf '\n  %s%sDevOps Toolbox%s %sfor Git Bash @DOT@ theme %s%s\n' "$TB_P" "$TB_B" "$TB_R" "$TB_D" "$TB_CUR" "$TB_R"
+  _tb_s "Files & navigation"
+  _tb_any z && _tb_h "z <part> / zi" "jump to a folder you used before / pick one"
+  _tb_any ll && _tb_h "ll / la / lt" "list long / all / tree"
+  _tb_any mkcd && _tb_h "mkcd <dir>" "make a folder and cd into it"
+  _tb_any extract && _tb_h "extract <archive>" "unpack zip / tar.gz / tgz / tar.xz"
+  _tb_any rg && _tb_h "rg <text>" "search in files"
+  _tb_any fd && _tb_h "fd <name>" "find files by name"
+  _tb_s "System"
+  _tb_any ports && _tb_h "ports" "listening ports"
+  _tb_any myip && _tb_h "myip" "public IP address"
+  _tb_any top && _tb_h "top" "resource monitor"
+  _tb_any fastfetch && _tb_h "fastfetch" "detailed system info"
+  if _tb_any g gs; then
+    _tb_s "Git"
+    _tb_h "g / gs" "git / short status"
+    _tb_any ga gaa && _tb_h "ga <f> / gaa" "add file / add all"
+    _tb_any gc gca && _tb_h "gc \"msg\" / gca" "commit -m / amend without editing"
+    _tb_any gp gpl && _tb_h "gp / gpl" "push / pull --rebase"
+    _tb_any gl && _tb_h "gl" "graph log"
+    _tb_any gd gco && _tb_h "gd / gco" "diff / checkout"
+    _tb_any lg && _tb_h "lg" "lazygit"
+  fi
+  if _tb_any k; then
+    _tb_s "Kubernetes"
+    _tb_h "k" "kubectl (with tab completion)"
+    _tb_any kgp kgs kgn && _tb_h "kgp / kgs / kgn" "pods / services / nodes"
+    _tb_any kl kex && _tb_h "kl <pod> / kex <pod> sh" "follow logs / exec into a pod"
+    _tb_any kaf kdel && _tb_h "kaf <file> / kdel" "apply -f / delete"
+    _tb_any kns kctx && _tb_h "kns / kctx" "switch namespace / context"
+    _tb_any k9s && _tb_h "k9s" "Kubernetes terminal UI"
+  fi
+  if _tb_any d dps; then
+    _tb_s "Docker"
+    _tb_h "d / dps / di" "docker / running / images"
+    _tb_any dex dlog && _tb_h "dex / dlog" "exec -it / logs -f"
+    _tb_any dc dcu dcd && _tb_h "dc / dcu / dcd" "compose / up -d / down"
+  fi
+  if _tb_has fzf; then
+    _tb_s "Keys"
+    _tb_h "Ctrl-r / Ctrl-t / Alt-c" "fzf: history / insert file / cd into folder"
+  fi
+  _tb_s "Pinned banner (Windows Terminal)"
+  _tb_h "toolbox-pin" "show / hide the banner pane in this tab"
+  _tb_h "toolbox-pin off | on" "off / on for new tabs (remembered)"
+  _tb_h "ssh ..." "the pane hides while ssh runs, then comes back"
+  _tb_s "Toolbox"
+  _tb_h "toolbox-banner" "show the banner again"
+  _tb_h "toolbox-theme [name]" "preview / switch theme (shared with PowerShell)"
+  _tb_h "toolbox-help" "this screen"
+  _tb_h "~/.devops-toolbox/custom.sh" "your own Git Bash additions (never overwritten)"
+  _tb_h "~/.devops-toolbox/custom.ps1" "shared settings, e.g. \$env:DEVOPS_TOOLBOX_BANNER = '0'"
+  printf '    %sThe toolbox only adds aliases you have not defined yourself; yours always win.%s\n\n' "$TB_D" "$TB_R"
+}
+
+# ---------------------------------------------------------------- alias packs (only names you haven't defined)
+if _tb_pack general; then
+  _tb_alias .. 'cd ..'; _tb_alias ... 'cd ../..'; _tb_alias .... 'cd ../../..'
+  _tb_alias c 'clear'; _tb_alias reload '. ~/.bashrc'; _tb_alias df 'df -h'
+  _tb_alias ports 'netstat -ano | grep LISTENING'; _tb_alias myip 'curl -s https://ifconfig.me; echo'
+  _tb_alias now 'date +"%Y-%m-%d %H:%M:%S"'; _tb_alias path 'echo -e ${PATH//:/\\n}'
+  if _tb_has eza; then
+    _tb_alias ll 'eza -alh --git --group-directories-first'; _tb_alias la 'eza -a --group-directories-first'
+    _tb_alias lt 'eza --tree --level=2 --group-directories-first'
+  fi
+  _tb_has btm && _tb_alias top 'btm'
+  _tb_has rg && _tb_alias rgi 'rg -i'
+  _tb_defined mkcd || mkcd() { mkdir -p "$1" && cd "$1"; }
+  _tb_defined extract || extract() {
+    case "$1" in
+      *.tar.gz|*.tgz) tar xzf "$1" ;; *.tar.bz2|*.tbz) tar xjf "$1" ;; *.tar.xz) tar xJf "$1" ;;
+      *.tar) tar xf "$1" ;; *.zip) unzip "$1" ;; *.gz) gunzip "$1" ;; *) echo "extract: unknown archive '$1'" ;;
+    esac
+  }
+fi
+_tb_has lazygit && _tb_alias lg 'lazygit'
+if _tb_pack git; then
+  _tb_alias g 'git'; _tb_alias gs 'git status -sb'; _tb_alias ga 'git add'; _tb_alias gaa 'git add -A'
+  _tb_alias gc 'git commit -m'; _tb_alias gca 'git commit --amend --no-edit'; _tb_alias gp 'git push'; _tb_alias gpl 'git pull --rebase'
+  _tb_alias gl 'git log --oneline --graph --decorate -20'; _tb_alias gla 'git log --oneline --graph --decorate --all'
+  _tb_alias gd 'git diff'; _tb_alias gds 'git diff --staged'; _tb_alias gco 'git checkout'; _tb_alias gsw 'git switch'
+  _tb_alias gb 'git branch'; _tb_alias gst 'git stash'; _tb_alias gstp 'git stash pop'; _tb_alias gf 'git fetch --all --prune'
+fi
+if _tb_pack k8s; then
+  _tb_alias k 'kubectl'
+  _tb_alias kg 'kubectl get'; _tb_alias kgp 'kubectl get pods'; _tb_alias kgpa 'kubectl get pods -A'; _tb_alias kgpw 'kubectl get pods -o wide'
+  _tb_alias kgs 'kubectl get svc'; _tb_alias kgd 'kubectl get deploy'; _tb_alias kgn 'kubectl get nodes -o wide'; _tb_alias kgi 'kubectl get ingress'
+  _tb_alias kga 'kubectl get all'; _tb_alias kge 'kubectl get events --sort-by=.lastTimestamp'
+  _tb_alias kd 'kubectl describe'; _tb_alias kdp 'kubectl describe pod'; _tb_alias kl 'kubectl logs -f'; _tb_alias kex 'kubectl exec -it'
+  _tb_alias kaf 'kubectl apply -f'; _tb_alias kdel 'kubectl delete'; _tb_alias krr 'kubectl rollout restart'; _tb_alias kpf 'kubectl port-forward'
+  _tb_alias ktop 'kubectl top pods'
+  _tb_defined kns || kns() { kubectl config set-context --current --namespace="$1"; }
+  _tb_defined kctx || kctx() { if [ -n "$1" ]; then kubectl config use-context "$1"; else kubectl config get-contexts; fi; }
+  _tb_has k9s && _tb_alias k9 'k9s'
+  # kubectl completion for kubectl and k (cached; skipped when you already load it yourself)
+  if _tb_has kubectl && ! complete -p kubectl >/dev/null 2>&1; then
+    _tb_cc="$TB_HOME/cache/kubectl-completion.bash"
+    hash kubectl 2>/dev/null; _tb_kx=${BASH_CMDS[kubectl]}   # no subshell
+    if [ ! -s "$_tb_cc" ] || [ "$_tb_kx" -nt "$_tb_cc" ]; then
+      mkdir -p "$TB_HOME/cache"; command kubectl completion bash > "$_tb_cc" 2>/dev/null
+    fi
+    [ -s "$_tb_cc" ] && . "$_tb_cc" && complete -o default -F __start_kubectl k
+    unset _tb_cc _tb_kx
+  fi
+fi
+if _tb_pack docker; then
+  _tb_alias d 'docker'; _tb_alias dps 'docker ps --format "table {{.Names}}\t{{.Image}}\t{{.Status}}\t{{.Ports}}"'
+  _tb_alias dpsa 'docker ps -a --format "table {{.Names}}\t{{.Image}}\t{{.Status}}"'; _tb_alias di 'docker images'
+  _tb_alias dex 'docker exec -it'; _tb_alias dlog 'docker logs -f'; _tb_alias dprune 'docker system prune -af'
+  _tb_alias dc 'docker compose'; _tb_alias dcu 'docker compose up -d'; _tb_alias dcd 'docker compose down'; _tb_alias dcl 'docker compose logs -f'
+  _tb_has lazydocker && _tb_alias ld 'lazydocker'
+fi
+if _tb_pack keys && _tb_has fzf && ! declare -F __fzf_history__ >/dev/null 2>&1; then
+  eval "$(fzf --bash 2>/dev/null)"
+fi
+if _tb_has zoxide && ! declare -F __zoxide_z >/dev/null 2>&1; then eval "$(zoxide init bash)"; fi
+if [ "$DEVOPS_TOOLBOX_PROMPT" = starship ] && _tb_has starship; then eval "$(starship init bash)"; fi   # Git Bash keeps your prompt unless you opt in
+
+# ---------------------------------------------------------------- your additions + banner
+[ -f "$TB_HOME/custom.sh" ] && . "$TB_HOME/custom.sh"
+
+if [ -t 1 ] && [ -z "$DEVOPS_TOOLBOX_BANNER_SHOWN" ]; then
+  export DEVOPS_TOOLBOX_BANNER_SHOWN=1   # shells started from this one stay quiet
+  _tb_pinned=0
+  if [ "$DEVOPS_TOOLBOX_PIN" != 0 ] && [ "$DEVOPS_TOOLBOX_BANNER" != 0 ] && [ "$TERM_PROGRAM" != vscode ]; then
+    tb_pin_show -q && _tb_pinned=1
+  fi
+  case "$DEVOPS_TOOLBOX_BANNER" in
+    0) ;;
+    fastfetch) if _tb_has fastfetch; then fastfetch; else tb_banner; fi ;;
+    *) if [ "$_tb_pinned" = 1 ]; then tb_banner welcome; else tb_banner; fi ;;
+  esac
+  unset _tb_pinned
+fi
+[ "$_tb_ea" = 1 ] && shopt -s expand_aliases; unset _tb_ea
+'@
+
 # ---------------------------------------------------------------------------------------------
 # Installer
 # ---------------------------------------------------------------------------------------------
@@ -723,15 +1076,16 @@ $CatalogSrc = @(
   'k8s|shell|-|-|Kubernetes aliases|k, kgp, kgs, kl, kex, kns, kctx + completion'
   'docker-aliases|shell|-|-|Docker aliases|d, dps, dc, dcu, dlog, dex'
   'keys|shell|-|-|PowerShell keys|Up/Down history search, Tab menu, fzf Ctrl-r / Ctrl-t'
+  'gitbash|shell|-|-|Git Bash setup|Banner, themes, pinned pane + missing aliases in Git Bash'
 )
 # alias-pack ids as the module knows them
-$PackName = @{ 'general' = 'general'; 'git-aliases' = 'git'; 'k8s' = 'k8s'; 'docker-aliases' = 'docker'; 'keys' = 'keys' }
+$PackName = @{ 'general' = 'general'; 'git-aliases' = 'git'; 'k8s' = 'k8s'; 'docker-aliases' = 'docker'; 'keys' = 'keys'; 'gitbash' = 'gitbash' }
 $Catalog = foreach ($l in $CatalogSrc) {
   $f = $l -split '\|'
   [pscustomobject]@{ Id = $f[0]; Cat = $f[1]; Winget = @($f[2] -split ' ' | Where-Object { $_ -ne '-' }); Cmd = $f[3]; Name = $f[4]; Desc = $f[5]; IsPack = ($f[2] -eq '-') }
 }
 $CatTitle = [ordered]@{ cli = 'Command-line tools'; mon = 'Monitoring'; k8s = 'Containers & Kubernetes'; cloud = 'Cloud & IaC'; shell = 'Aliases & shell' }
-$Min = 'git fzf zoxide bat eza ripgrep fastfetch general git-aliases keys'
+$Min = 'git fzf zoxide bat eza ripgrep fastfetch general git-aliases keys gitbash'
 $Core = "$Min fd jq yq delta lazygit starship tldr bottom"
 $Profiles = [ordered]@{
   minimal    = @{ Desc = 'fzf, zoxide, bat, eza, ripgrep, fastfetch + general and git aliases'; Ids = $Min }
@@ -909,7 +1263,13 @@ function Invoke-Uninstall {
       Say $G_OK $GR "profile line removed  $DIM$pf$R"
     }
   }
-  if (-not $DryRun) { $n = tb_wt_apply -Remove; if ($n) { Say $G_OK $GR 'Windows Terminal: toolbox schemes removed' } }
+  $rc = Join-Path $UserHome '.bashrc'
+  if ((Test-Path $rc) -and (Select-String -Path $rc -Pattern '# devops-toolbox$' -Quiet)) {
+    $keep = @([IO.File]::ReadAllLines($rc) | Where-Object { $_ -notmatch '# devops-toolbox$' -and $_ -notmatch '^# DevOps Toolbox \(banner' })
+    if (-not $DryRun) { [IO.File]::WriteAllText($rc, (($keep -join "`n") + "`n"), (New-Object Text.UTF8Encoding $false)) }
+    Say $G_OK $GR "~/.bashrc line removed"
+  }
+  if (-not $DryRun) { $n = tb_wt_apply -Remove; if ($n) { Say $G_OK $GR 'Windows Terminal: toolbox schemes removed, Git Bash colours restored' } }
   $custom = Join-Path $TbHome 'custom.ps1'
   if (Test-Path $custom) {
     $keep = Join-Path $UserHome 'devops-toolbox-custom.ps1.bak'
@@ -922,6 +1282,80 @@ function Invoke-Uninstall {
   Write-Host "  ${DIM}Tools installed with winget stay installed. Remove one with: winget uninstall --id <id>$R"
   Write-Host "  ${DIM}Open a new terminal to finish.$R"
   Write-Host ''
+}
+
+function Get-GitBash {
+  $c = @()
+  $g = Get-Command git -CommandType Application -ErrorAction SilentlyContinue | Select-Object -First 1
+  if ($g) { $d = Split-Path $g.Source; $c += (Join-Path (Split-Path $d) 'bin\bash.exe'); $c += (Join-Path (Split-Path (Split-Path $d)) 'bin\bash.exe') }
+  $c += "$env:ProgramFiles\Git\bin\bash.exe"
+  $c | Where-Object { $_ -and (Test-Path $_) } | Select-Object -First 1
+}
+function ConvertTo-UnixPath([string]$w) { '/' + $w.Substring(0, 1).ToLower() + $w.Substring(2).Replace('\', '/') }
+function Get-GitBashProfileIds {
+  foreach ($wt in tb_wt_files) {
+    try {
+      $j = Get-Content -Raw -Path $wt -Encoding UTF8 | ConvertFrom-Json
+      foreach ($pr in @($j.profiles.list)) {
+        if ($pr -and ("$($pr.name)" -eq 'Git Bash' -or "$($pr.commandline)" -match 'Git\\(usr\\)?bin\\bash\.exe' -or "$($pr.source)" -eq 'Git')) { "$($pr.guid)|$($pr.name)|$($pr.colorScheme)" }
+      }
+    } catch { }
+  }
+}
+function Install-GitBash([string[]]$Packs) {
+  if (-not (Get-GitBash)) { Say $G_SKIP $DIM 'Git Bash not found (install Git first); skipped the Git Bash setup'; return }
+  $gbFile = Join-Path $TbHome 'gitbash.sh'
+  $unixHome = ConvertTo-UnixPath $TbHome
+  $h = @(
+    '# devops-toolbox for Git Bash. Generated by install-toolbox.ps1: re-run it to change this file.',
+    '# Settings are shared with PowerShell (~/.devops-toolbox/custom.ps1); your own additions go in ~/.devops-toolbox/custom.sh.',
+    "TB_HOME='$unixHome'",
+    "TB_PACKS='$($Packs -join ' ')'",
+    "TB_THEME_NAMES='$(@($global:TB_Themes.Keys) -join ' ')'",
+    'declare -A TB_THEME=(' + ((@($global:TB_Themes.Keys) | ForEach-Object { "[$_]='$($global:TB_Themes[$_])'" }) -join ' ') + ')',
+    'declare -A TB_WTPRE=(' + ((@($global:TB_WtSchemes.Keys) | ForEach-Object { $v = $global:TB_WtSchemes[$_] -split ' '; "[$_]='$($v[0]) $($v[1]) $($v[6])'" }) -join ' ') + ')',
+    'TB_LOGO=(' + ((@($global:TB_Logo) | ForEach-Object { "'$_'" }) -join ' ') + ')'
+  ) -join "`n"
+  $text = $GitBashSrc.Replace("`r`n", "`n").Replace('#@HEADER@', $h)
+  $text = $text.Replace('@BLK@', [string][char]0x2588).Replace('@DOT@', [string][char]0x00B7).Replace('@COPY@', [string][char]0x00A9).Replace('@BULLET@', [string][char]0x25CF)
+  if ($DryRun) { Say $G_SKIP $DIM "would write $gbFile and add one line to ~/.bashrc"; return }
+  [IO.File]::WriteAllText($gbFile, $text, (New-Object Text.UTF8Encoding $false))
+  Say $G_OK $GR "Git Bash module  $DIM$gbFile$R"
+
+  $rc = Join-Path $UserHome '.bashrc'
+  $line = '[ -f ~/.devops-toolbox/gitbash.sh ] && . ~/.devops-toolbox/gitbash.sh  # devops-toolbox'
+  if ($TestRoot) { $line = "[ -f '$unixHome/gitbash.sh' ] && . '$unixHome/gitbash.sh'  # devops-toolbox" }
+  $cur = ''; if (Test-Path $rc) { $cur = [IO.File]::ReadAllText($rc) }
+  if ($cur -match '# devops-toolbox(\r?\n|$)') { Say $G_OK $GR "~/.bashrc already set up" }
+  else {
+    $add = ''; if ($cur -and -not $cur.EndsWith("`n")) { $add = "`n" }
+    $add += "`n# DevOps Toolbox (banner, themes, pinned pane; only adds aliases you haven't defined)`n$line`n"
+    [IO.File]::AppendAllText($rc, $add, (New-Object Text.UTF8Encoding $false))
+    Say $G_OK $GR "added to ~/.bashrc  ${DIM}(as the last line, so your own setup loads first)$R"
+  }
+  if (Test-Path $rc) {
+    if (Select-String -Path $rc -Pattern '^\s*[^#]*\bfastfetch\b' -Quiet) {
+      Say $G_WARN $YE "~/.bashrc also runs fastfetch at start; remove that if you only want the toolbox banner."
+    }
+  }
+}
+function Set-GitBashColours {
+  # The Git Bash tab usually has its own colour scheme, which wins over the toolbox default.
+  if ($NoTerminalScheme -or -not (tb_wt_files)) { return }
+  $todo = @(Get-GitBashProfileIds | Where-Object { ($_ -split '\|')[2] -notlike 'DevOps Toolbox*' })
+  if (-not $todo) { return }
+  $ids = @(); foreach ($t in $todo) { $ids += ($t -split '\|')[0] }
+  $own = ($todo | ForEach-Object { ($_ -split '\|')[2] } | Where-Object { $_ } | Select-Object -First 1)
+  if ($own) {
+    $ok = $true
+    if ($Interactive) {
+      Write-Host "  The Git Bash tab uses its own colours ('$own'). Use the toolbox colours there too? [Y/n] " -NoNewline
+      $a = [Console]::ReadKey($true); Write-Host ''; $ok = $a.Key -ne 'N'
+    }
+    if (-not $ok) { Say $G_SKIP $DIM "Git Bash keeps '$own'"; return }
+  }
+  if ($DryRun) { Say $G_SKIP $DIM 'would switch the Git Bash tab to the toolbox colours'; return }
+  if (tb_wt_apply $Theme -UseInProfiles $ids) { Say $G_OK $GR "Git Bash tab uses the toolbox colours  ${DIM}(its old scheme is restored on uninstall)$R" }
 }
 
 # ------------------------------------------------------------------------------ main
@@ -1057,6 +1491,7 @@ if ($DryRun) {
 }
 $policyOk = Test-ExecutionPolicy
 Set-ProfileLine
+if ($state -contains 'gitbash') { Install-GitBash $packs }
 
 # 5. Windows Terminal
 if ($NoTerminalScheme) {
@@ -1068,6 +1503,7 @@ if ($NoTerminalScheme) {
 } else {
   $n = tb_wt_apply $Theme
   if ($n) { Say $G_OK $GR "Windows Terminal: 7 colour schemes added, default is 'DevOps Toolbox $(tb_title $Theme)'  ${DIM}(backup: settings.json.toolbox-backup)$R" }
+  if ($state -contains 'gitbash') { Set-GitBashColours }
 }
 
 # 6. done
