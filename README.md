@@ -6,6 +6,8 @@ Make a fresh Linux server ready for DevOps work with one command. An interactive
 curl -fsSL https://raw.githubusercontent.com/uthrapathy-m/devops-toolbox/main/install-devops-tool.sh | bash
 ```
 
+**Full guide with examples:** [docs/devops-toolbox-guide.pdf](docs/devops-toolbox-guide.pdf) (also as [HTML](docs/devops-toolbox-guide.html), download and open in a browser).
+
 <p align="center"><img src="assets/banner-ocean.png" alt="DevOps Toolbox login banner (Ocean theme)" width="820"></p>
 
 The installer menu looks like this:
@@ -181,7 +183,7 @@ sofka can also convert your k9s setup with `sofka import k9s`.
 
 ## k3s and k3d clusters
 
-Two ways to get a Kubernetes cluster, both managed with **`toolbox-k3s`**:
+Two ways to get a Kubernetes cluster. Both use the upstream `k3d` and `k3s` commands directly; the toolbox adds no wrapper.
 
 | | **k3d** (in K8s Ops) | **k3s server** (opt-in) |
 |---|---|---|
@@ -189,31 +191,44 @@ Two ways to get a Kubernetes cluster, both managed with **`toolbox-k3s`**:
 | Best for | Quick test clusters, multi-node on one box | A cluster that survives reboots, with real workers joining |
 | Needs | Docker | sudo/root |
 
-Ticking **k3s server** in the menu installs the cluster straight away. The installer asks once whether to disable Traefik; use `--no-traefik` when running non-interactively. After that, use the helper:
+### k3d
 
 ```bash
-toolbox-k3s                                    # interactive menu
-toolbox-k3s create k3d dev --agents 2          # 1 server + 2 workers in Docker
-toolbox-k3s create k3s --no-traefik            # real k3s server on this machine
-toolbox-k3s status                             # what's running, contexts, nodes
-toolbox-k3s delete k3d dev                     # remove a k3d cluster
-toolbox-k3s delete k3s                         # uninstall k3s from this machine
+k3d cluster create dev --agents 2      # 1 server + 2 workers in Docker
+k3d cluster list
+k3d cluster delete dev
 ```
 
-**kubeconfig is set up automatically.** Each cluster is merged into `~/.kube/config` as its own context (`k3s-<hostname>` or `k3d-<name>`), and a backup is kept. `k`, `k9s` and `sofka` work right away without sudo.
+k3d adds each cluster to `~/.kube/config` as the context `k3d-<name>`.
+
+### k3s server
+
+Ticking **k3s server** in the menu runs the official installer (`curl -sfL https://get.k3s.io | sh -`). The installer asks once whether to disable Traefik; use `--no-traefik` when running non-interactively. To do it by hand:
+
+```bash
+curl -sfL https://get.k3s.io | sh -s - --disable traefik   # drop the flag to keep Traefik
+mkdir -p ~/.kube && sudo cat /etc/rancher/k3s/k3s.yaml > ~/.kube/config && chmod 600 ~/.kube/config
+kubectl get nodes
+sudo /usr/local/bin/k3s-uninstall.sh                       # remove k3s
+```
+
+The toolbox's k3s item writes the kubeconfig to `~/.kube/config` only if you don't have one yet. Otherwise it writes `~/.kube/k3s.yaml` and leaves your config alone (`export KUBECONFIG=~/.kube/config:~/.kube/k3s.yaml` to use both).
 
 ### Adding worker machines (k3s)
 
-1. On the **server**, run `toolbox-k3s token`. It prints the join command, including the server's private IP and token.
-2. On each **worker** (with the toolbox installed), run the printed command:
+1. On the **server**, get the token and private IP:
    ```bash
-   toolbox-k3s join https://<server-private-ip>:6443 <token>
+   sudo cat /var/lib/rancher/k3s/server/node-token
+   hostname -I | awk '{print $1}'
    ```
-   Without the toolbox, use `curl -sfL https://get.k3s.io | K3S_URL=... K3S_TOKEN=... sh -`. `toolbox-k3s token` prints that version too.
+2. On each **worker**, run:
+   ```bash
+   curl -sfL https://get.k3s.io | K3S_URL=https://<server-private-ip>:6443 K3S_TOKEN=<token> sh -
+   ```
 3. **On AWS**, the security group must allow **TCP 6443** (API server), **UDP 8472** (flannel) and **TCP 10250** (kubelet) between the nodes. Allow them from the same security group or the VPC CIDR.
-4. Check with `kubectl get nodes` on the server.
+4. Check with `kubectl get nodes` on the server. Remove a worker with `sudo /usr/local/bin/k3s-agent-uninstall.sh`.
 
-The join token works like a cluster password. It isn't written to the install logs; run `toolbox-k3s token` whenever you need it.
+The join token works like a cluster password. Don't paste it into tickets or chat.
 
 ## Fonts (install on your own computer)
 

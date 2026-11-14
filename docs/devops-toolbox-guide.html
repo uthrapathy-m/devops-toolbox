@@ -1,0 +1,1123 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+</head>
+<body>
+<title>DevOps Toolbox Guide</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&family=Kalam:wght@400;700&family=Newsreader:opsz,wght@6..72,500;6..72,600&display=swap">
+<style>
+/* Layout: fixed left table of contents + a single reading column (~70ch) with full-width figures, tables and code. */
+:root, .light-tokens {
+  --paper: #FAF9F5;
+  --surface: #F1EFE7;
+  --raised: #FFFFFF;
+  --ink: #1F1E1D;
+  --ink-2: #3D3A33;
+  --muted: #6B675D;
+  --line: #E2DED3;
+  --clay: #C15F3C;
+  --clay-ink: #A3492A;
+  --clay-fill: #F6DFD4;
+  --sky: #3F6F99;
+  --sky-fill: #DCE7F2;
+  --sage: #4F7D56;
+  --sage-fill: #DDEADB;
+  --sand: #A57A1E;
+  --sand-fill: #F2E6C8;
+  --plain-fill: #FFFFFF;
+  --code-bg: #F3F1EA;
+}
+:root {
+  --font-display: "Newsreader", "Iowan Old Style", Georgia, serif;
+  --font-body: "Inter", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, "Cascadia Code", Consolas, monospace;
+  --font-hand: "Kalam", "Segoe Print", "Comic Sans MS", cursive;
+  --sidebar: 272px;
+  --measure: 780px;
+  --radius: 10px;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --paper: #1C1B19; --surface: #252420; --raised: #2A2925; --ink: #ECE9E1; --ink-2: #D3CFC4;
+    --muted: #A39F94; --line: #3A3832; --clay: #E07B57; --clay-ink: #EE9575; --clay-fill: #4A2D22;
+    --sky: #8CB3D8; --sky-fill: #22303D; --sage: #92BE97; --sage-fill: #233428; --sand: #D9B35E;
+    --sand-fill: #3B3121; --plain-fill: #2A2925; --code-bg: #22211E; color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --paper: #1C1B19; --surface: #252420; --raised: #2A2925; --ink: #ECE9E1; --ink-2: #D3CFC4;
+  --muted: #A39F94; --line: #3A3832; --clay: #E07B57; --clay-ink: #EE9575; --clay-fill: #4A2D22;
+  --sky: #8CB3D8; --sky-fill: #22303D; --sage: #92BE97; --sage-fill: #233428; --sand: #D9B35E;
+  --sand-fill: #3B3121; --plain-fill: #2A2925; --code-bg: #22211E; color-scheme: dark;
+}
+
+* { box-sizing: border-box; }
+html { scroll-behavior: smooth; scroll-padding-top: 24px; }
+@media (prefers-reduced-motion: reduce) { html { scroll-behavior: auto; } }
+body {
+  background: var(--paper);
+  color: var(--ink-2);
+  font-family: var(--font-body);
+  font-size: 16px;
+  line-height: 1.65;
+  -webkit-font-smoothing: antialiased;
+}
+.light-tokens { display: none; }
+
+/* ---------- Sidebar ---------- */
+.sidebar {
+  position: fixed; top: 0; bottom: 0; left: 0; width: var(--sidebar);
+  padding: calc(28px + env(safe-area-inset-top, 0px)) 22px 24px max(22px, env(safe-area-inset-left, 0px));
+  border-right: 1px solid var(--line);
+  background: var(--surface);
+  overflow-y: auto;
+  display: flex; flex-direction: column; gap: 22px;
+  z-index: 20;
+}
+.brand { display: flex; flex-direction: column; gap: 2px; }
+.brand .kicker { font-size: 11px; letter-spacing: .12em; text-transform: uppercase; color: var(--clay-ink); font-weight: 600; }
+.brand .name { font-family: var(--font-display); font-size: 22px; line-height: 1.2; color: var(--ink); font-weight: 600; }
+.toc { display: flex; flex-direction: column; gap: 18px; }
+.toc-group { display: flex; flex-direction: column; gap: 2px; }
+.toc-group h4 { margin: 0 0 4px; font-size: 11px; letter-spacing: .12em; text-transform: uppercase; color: var(--muted); font-weight: 600; }
+.toc a {
+  display: flex; gap: 8px; align-items: baseline;
+  padding: 5px 10px; margin-left: -10px; border-radius: 6px;
+  color: var(--ink-2); text-decoration: none; font-size: 14px; line-height: 1.35;
+}
+.toc a .n { font-family: var(--font-mono); font-size: 11px; color: var(--muted); min-width: 18px; }
+.toc a:hover { background: var(--line); }
+.toc a.active { background: var(--clay-fill); color: var(--clay-ink); font-weight: 600; }
+.toc a.active .n { color: var(--clay-ink); }
+.sidebar-foot { margin-top: auto; display: flex; flex-direction: column; gap: 8px; }
+
+.btn {
+  display: inline-flex; align-items: center; justify-content: center; gap: 8px;
+  font: 600 14px/1 var(--font-body);
+  padding: 11px 14px; border-radius: 8px; cursor: pointer;
+  border: 1px solid var(--clay); background: var(--clay); color: #fff;
+}
+.btn:hover { filter: brightness(1.06); }
+.btn:focus-visible, .toc a:focus-visible, .copy:focus-visible, .toc-toggle:focus-visible { outline: 2px solid var(--sky); outline-offset: 2px; }
+.btn svg { width: 16px; height: 16px; }
+.btn.ghost { background: transparent; color: var(--ink); border-color: var(--line); }
+.hint { font-size: 12px; color: var(--muted); line-height: 1.45; }
+
+.print-note {
+  border: 1px solid var(--line); background: var(--raised); border-radius: 8px;
+  padding: 12px 14px; font-size: 13px; line-height: 1.5; color: var(--ink-2);
+}
+.print-note code { font-size: 12px; word-break: break-all; }
+
+/* ---------- Mobile top bar ---------- */
+.topbar { display: none; }
+@media (max-width: 960px) {
+  .sidebar { transform: translateX(-102%); transition: transform .2s ease; width: min(86vw, 320px); box-shadow: 0 10px 40px rgba(0,0,0,.18); }
+  body.nav-open .sidebar { transform: none; }
+  .topbar {
+    display: flex; align-items: center; justify-content: space-between; gap: 12px;
+    position: sticky; top: env(safe-area-inset-top, 0px); z-index: 15;
+    padding-block: 10px;
+    padding-left: max(16px, env(safe-area-inset-left, 0px));
+    padding-right: max(16px, env(safe-area-inset-right, 0px));
+    background: var(--paper); border-bottom: 1px solid var(--line);
+  }
+  body::before { content: ""; position: fixed; inset: 0 0 auto; height: env(safe-area-inset-top, 0px); z-index: 10; background: var(--paper); }
+  .topbar .t { font-family: var(--font-display); font-weight: 600; color: var(--ink); font-size: 17px; }
+  .toc-toggle { font: 600 13px var(--font-body); padding: 8px 12px; border-radius: 8px; border: 1px solid var(--line); background: var(--raised); color: var(--ink); cursor: pointer; }
+  .scrim { position: fixed; inset: 0; background: rgba(0,0,0,.35); z-index: 18; }
+}
+@media (prefers-reduced-motion: reduce) { .sidebar { transition: none !important; } }
+
+/* ---------- Main column ---------- */
+main {
+  margin-left: var(--sidebar);
+  padding-block: 56px 96px;
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+}
+@media (max-width: 960px) { main { margin-left: 0; padding-block: 28px 72px; } }
+.wrap { max-width: var(--measure); margin: 0 auto; display: flex; flex-direction: column; gap: 0; min-width: 0; }
+
+header.doc { display: flex; flex-direction: column; gap: 18px; padding-bottom: 36px; border-bottom: 1px solid var(--line); }
+.eyebrow { font-size: 12px; letter-spacing: .14em; text-transform: uppercase; color: var(--clay-ink); font-weight: 600; }
+h1 {
+  font-family: var(--font-display); font-weight: 600; color: var(--ink);
+  font-size: clamp(36px, 5.4vw, 54px); line-height: 1.05; margin: 0; letter-spacing: -0.015em;
+  text-wrap: balance;
+}
+.lede { font-size: 19px; line-height: 1.55; color: var(--ink-2); margin: 0; max-width: 64ch; }
+.meta { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 0; border: 1px solid var(--line); border-radius: var(--radius); background: var(--raised); }
+.meta div { padding: 14px 16px; display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+.meta div + div { border-left: 1px solid var(--line); }
+.meta dt { font-size: 11px; letter-spacing: .1em; text-transform: uppercase; color: var(--muted); font-weight: 600; }
+.meta dd { margin: 0; font-family: var(--font-display); font-size: 21px; color: var(--ink); font-weight: 600; font-variant-numeric: tabular-nums; }
+@media (max-width: 640px) {
+  .meta { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .meta div:nth-child(3) { border-left: 0; }
+  .meta div:nth-child(n+3) { border-top: 1px solid var(--line); }
+}
+
+section.s { padding-top: 56px; display: flex; flex-direction: column; gap: 16px; min-width: 0; }
+.s-head { display: flex; flex-direction: column; gap: 6px; }
+.s-num { font-family: var(--font-mono); font-size: 12px; color: var(--clay-ink); letter-spacing: .06em; }
+h2 { font-family: var(--font-display); font-weight: 600; color: var(--ink); font-size: 32px; line-height: 1.15; margin: 0; letter-spacing: -0.01em; text-wrap: balance; }
+h3 { font-family: var(--font-body); font-weight: 700; color: var(--ink); font-size: 18px; line-height: 1.35; margin: 14px 0 0; text-wrap: balance; }
+p { margin: 0; max-width: 68ch; }
+.s ul, .s ol { margin: 0; padding-left: 22px; display: flex; flex-direction: column; gap: 6px; max-width: 68ch; }
+strong { color: var(--ink); font-weight: 600; }
+a { color: var(--clay-ink); text-underline-offset: 3px; }
+:not(pre) > code { font-family: var(--font-mono); font-size: .86em; background: var(--code-bg); border: 1px solid var(--line); padding: 1px 5px; border-radius: 5px; color: var(--ink); }
+
+/* Phase banner */
+.phase-tag { display: flex; flex-wrap: wrap; gap: 8px; }
+.chip { font-size: 12px; font-weight: 600; padding: 4px 10px; border-radius: 999px; background: var(--surface); border: 1px solid var(--line); color: var(--ink-2); font-variant-numeric: tabular-nums; }
+.chip.clay { background: var(--clay-fill); border-color: transparent; color: var(--clay-ink); }
+.chip.sky { background: var(--sky-fill); border-color: transparent; color: var(--sky); }
+.chip.sage { background: var(--sage-fill); border-color: transparent; color: var(--sage); }
+.chip.sand { background: var(--sand-fill); border-color: transparent; color: var(--sand); }
+
+/* Callouts */
+.callout { border: 1px solid var(--line); background: var(--surface); border-radius: var(--radius); padding: 16px 18px; display: flex; flex-direction: column; gap: 6px; }
+.callout .label { font-size: 11px; letter-spacing: .12em; text-transform: uppercase; font-weight: 700; color: var(--muted); }
+.callout.key { background: var(--clay-fill); border-color: transparent; }
+.callout.key .label { color: var(--clay-ink); }
+.callout.done { background: var(--sage-fill); border-color: transparent; }
+.callout.done .label { color: var(--sage); }
+.callout.warn { background: var(--sand-fill); border-color: transparent; }
+.callout.warn .label { color: var(--sand); }
+.callout ul { padding-left: 20px; }
+
+/* Tables */
+.table-wrap { overflow-x: auto; border: 1px solid var(--line); border-radius: var(--radius); background: var(--raised); }
+table { border-collapse: collapse; width: 100%; font-size: 14px; line-height: 1.5; }
+th, td { text-align: left; padding: 10px 14px; vertical-align: top; border-bottom: 1px solid var(--line); }
+th { font-size: 11px; letter-spacing: .1em; text-transform: uppercase; color: var(--muted); font-weight: 600; background: var(--surface); white-space: nowrap; }
+tr:last-child td { border-bottom: 0; }
+td.wk { font-family: var(--font-mono); font-size: 12.5px; color: var(--clay-ink); white-space: nowrap; font-weight: 500; }
+td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+td strong { color: var(--ink); }
+.tbl-min { min-width: 620px; }
+
+/* Code */
+.code { border: 1px solid var(--line); border-radius: var(--radius); background: var(--code-bg); overflow: hidden; min-width: 0; }
+.code-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 8px 12px 8px 14px; border-bottom: 1px solid var(--line); background: var(--surface); }
+.code-head .file { font-family: var(--font-mono); font-size: 12px; color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.code-head .lang { font-size: 10px; letter-spacing: .1em; text-transform: uppercase; font-weight: 700; color: var(--clay-ink); margin-right: 8px; }
+.copy { font: 600 12px var(--font-body); color: var(--ink-2); background: var(--raised); border: 1px solid var(--line); border-radius: 6px; padding: 5px 10px; cursor: pointer; flex-shrink: 0; }
+.copy.ok { color: var(--sage); border-color: var(--sage); }
+pre { margin: 0; padding: 16px 18px; overflow-x: auto; font-family: var(--font-mono); font-size: 13px; line-height: 1.6; color: var(--ink); tab-size: 2; }
+pre code { font-family: inherit; background: none; border: 0; padding: 0; }
+.token.comment, .token.prolog { color: var(--muted); font-style: italic; }
+.token.keyword, .token.atrule, .token.key, .token.important, .token.builtin { color: var(--clay-ink); }
+.token.string, .token.attr-value, .token.char { color: var(--sage); }
+.token.number, .token.boolean, .token.constant { color: var(--sand); }
+.token.function, .token.class-name, .token.property { color: var(--sky); }
+.token.punctuation, .token.operator { color: var(--muted); }
+.token.variable { color: var(--clay); }
+
+/* Figures */
+figure.fig { margin: 8px 0; border: 1px solid var(--line); border-radius: var(--radius); background: var(--paper); padding: 18px 18px 12px; display: flex; flex-direction: column; gap: 10px; min-width: 0; }
+.fig-scroll { overflow-x: auto; }
+figure.fig svg { display: block; width: 100%; min-width: 560px; height: auto; }
+figcaption { font-size: 13px; color: var(--muted); line-height: 1.5; display: flex; gap: 8px; }
+figcaption b { color: var(--clay-ink); font-weight: 600; white-space: nowrap; }
+
+/* Grids */
+.cols-2 { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; }
+.cols-3 { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 14px; }
+@media (max-width: 720px) { .cols-2, .cols-3 { grid-template-columns: minmax(0, 1fr); } }
+.card { border: 1px solid var(--line); border-radius: var(--radius); background: var(--raised); padding: 16px 18px; display: flex; flex-direction: column; gap: 8px; min-width: 0; }
+.card h4 { margin: 0; font-size: 15px; color: var(--ink); font-weight: 700; }
+.card p, .card li { font-size: 14px; }
+.card .tag { font-size: 11px; letter-spacing: .1em; text-transform: uppercase; font-weight: 700; }
+.card.clay .tag { color: var(--clay-ink); } .card.sky .tag { color: var(--sky); } .card.sage .tag { color: var(--sage); } .card.sand .tag { color: var(--sand); }
+.card.feature { border-color: var(--clay); box-shadow: 0 0 0 1px var(--clay) inset; }
+
+/* Checklist */
+.checks { list-style: none; padding: 0 !important; display: flex; flex-direction: column; gap: 8px; }
+.checks li { position: relative; padding-left: 32px; }
+.checks li::before { content: ""; position: absolute; left: 0; top: 4px; width: 16px; height: 16px; border: 1.6px solid var(--clay); border-radius: 4px; }
+
+.formula { font-family: var(--font-mono); font-size: 14px; background: var(--raised); border: 1px dashed var(--clay); border-radius: 8px; padding: 12px 16px; color: var(--ink); overflow-x: auto; }
+
+footer.end { margin-top: 64px; padding-top: 20px; border-top: 1px solid var(--line); font-size: 13px; color: var(--muted); display: flex; justify-content: space-between; flex-wrap: wrap; gap: 8px; }
+
+/* ---------- Print: A4 ---------- */
+@page { size: A4; margin: 16mm 15mm 18mm; }
+@media print {
+  :root, :root:not([data-theme="light"]), :root[data-theme="dark"] {
+    --paper: #FFFFFF; --surface: #F4F2EC; --raised: #FFFFFF; --ink: #1F1E1D; --ink-2: #33312C;
+    --muted: #66625A; --line: #DDD9CE; --clay: #C15F3C; --clay-ink: #A3492A; --clay-fill: #F6DFD4;
+    --sky: #3F6F99; --sky-fill: #DCE7F2; --sage: #4F7D56; --sage-fill: #DDEADB; --sand: #A57A1E;
+    --sand-fill: #F2E6C8; --plain-fill: #FFFFFF; --code-bg: #F6F4EE; color-scheme: light;
+  }
+  html, body { background: #fff !important; }
+  body { font-size: 10.5pt; line-height: 1.5; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  body::before, .sidebar, .topbar, .scrim, .copy, .no-print { display: none !important; }
+  main { margin: 0 !important; padding: 0 !important; }
+  .wrap { max-width: none; }
+  header.doc { padding-bottom: 20px; }
+  h1 { font-size: 30pt; }
+  h2 { font-size: 20pt; }
+  h3 { font-size: 12pt; }
+  .lede { font-size: 12.5pt; }
+  section.s { padding-top: 22px; }
+  section.s.page { break-before: page; }
+  .s-head, h3 { break-after: avoid; }
+  figure.fig, .code, .callout, .card, tr, .meta { break-inside: avoid; }
+  .table-wrap, .fig-scroll { overflow: visible; }
+  figure.fig svg { min-width: 0; }
+  .tbl-min { min-width: 0; }
+  pre { white-space: pre-wrap; word-break: break-word; font-size: 8.6pt; overflow: visible; }
+  a { color: var(--ink); text-decoration: none; }
+  .res a::after { content: " (" attr(href) ")"; font-size: 8pt; color: var(--muted); word-break: break-all; }
+  footer.end { margin-top: 28px; }
+}
+</style>
+
+<div class="light-tokens" id="lightProbe" aria-hidden="true"></div>
+
+<div class="topbar">
+  <span class="t">DevOps Toolbox</span>
+  <button class="toc-toggle" id="tocToggle" type="button" aria-expanded="false" aria-controls="sidebar">Contents</button>
+</div>
+<div class="scrim" id="scrim" hidden></div>
+
+<aside class="sidebar" id="sidebar" aria-label="Table of contents">
+  <div class="brand">
+    <span class="kicker">User guide</span>
+    <span class="name">DevOps Toolbox</span>
+  </div>
+  <nav class="toc" id="toc">
+    <div class="toc-group">
+      <h4>Start here</h4>
+      <a href="#overview"><span class="n">01</span>Overview</a>
+      <a href="#how-it-fits"><span class="n">02</span>How it fits together</a>
+      <a href="#quick-start"><span class="n">03</span>Quick start</a>
+    </div>
+    <div class="toc-group">
+      <h4>Hands-on</h4>
+      <a href="#installer"><span class="n">04</span>Installer menus</a>
+      <a href="#banner"><span class="n">05</span>Pinned banner &amp; tmux</a>
+      <a href="#themes"><span class="n">06</span>Themes</a>
+      <a href="#kubernetes"><span class="n">07</span>k9s &amp; sofka</a>
+      <a href="#clusters"><span class="n">08</span>k3s &amp; k3d clusters</a>
+      <a href="#shell"><span class="n">09</span>Aliases &amp; shell</a>
+    </div>
+    <div class="toc-group">
+      <h4>Reference</h4>
+      <a href="#workflows"><span class="n">10</span>Example workflows</a>
+      <a href="#files"><span class="n">11</span>Files, update, uninstall</a>
+      <a href="#troubleshooting"><span class="n">12</span>Troubleshooting</a>
+      <a href="#resources"><span class="n">13</span>Resources</a>
+    </div>
+  </nav>
+  <div class="sidebar-foot no-print">
+    <button class="btn" id="printBtn" type="button">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 9V3h12v6"/><rect x="6" y="14" width="12" height="7" rx="1"/><path d="M6 18H4a2 2 0 0 1-2-2v-4a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v4a2 2 0 0 1-2 2h-2"/></svg>
+      Print / Save as PDF (A4)
+    </button>
+    <div class="print-note" id="printNote" hidden>
+      Printing is blocked inside the Claude viewer. Open the local copy in Chrome or Edge and press this button again (or Ctrl+P), then choose <strong>Save as PDF</strong> and paper size <strong>A4</strong>:
+      <code>docs/devops-toolbox-guide.html</code> (in the repo)
+      A ready-made PDF is saved next to it.
+    </div>
+  </div>
+</aside>
+
+<main>
+<div class="wrap">
+
+<header class="doc" id="top">
+  <span class="eyebrow">User guide · 14 November 2026</span>
+  <h1>DevOps Toolbox</h1>
+  <p class="lede">One command turns a fresh Linux server into a ready DevOps workstation. You get modern CLI tools, Kubernetes and cloud CLIs, alias packs, a themed banner pinned at the top of the screen, and one-command k3s clusters. This guide shows how to use every part, with copy-paste examples.</p>
+  <dl class="meta">
+    <div><dt>Catalog</dt><dd>42 items</dd></div>
+    <div><dt>Distros</dt><dd>apt · dnf</dd></div>
+    <div><dt>CPU</dt><dd>x86_64 · arm64</dd></div>
+    <div><dt>Themes</dt><dd>7</dd></div>
+  </dl>
+</header>
+
+<section class="s" id="overview">
+  <div class="s-head"><span class="s-num">01 · START HERE</span><h2>Overview</h2></div>
+  <p>Every new server usually means the same half hour: download tools, write aliases, fix the prompt, set up kubeconfig. The toolbox does all of it from a public GitHub repo, <a href="https://github.com/uthrapathy-m/devops-toolbox" target="_blank" rel="noopener">uthrapathy-m/devops-toolbox</a>. An interactive menu lets you pick exactly what goes on each box.</p>
+  <div class="cols-3">
+    <div class="card clay feature"><span class="tag">Installer</span><h4>One command per server</h4><p><code>curl … | bash</code> opens a menu with 6 profiles and 42 items. Re-running it is safe: anything already installed is skipped.</p></div>
+    <div class="card sky"><span class="tag">Workspace</span><h4>Pinned banner + tmux</h4><p>A themed DEVOPS banner with live stats stays at the top. Your SSH session survives disconnects.</p></div>
+    <div class="card sage"><span class="tag">Kubernetes</span><h4>Clusters in one line</h4><p>Plain <code>k3d</code> and <code>k3s</code> commands give you a cluster in one line. k9s and sofka come themed, with plugins.</p></div>
+  </div>
+  <p>The repo has three scripts. Each runs in a different place:</p>
+  <div class="table-wrap">
+    <table class="tbl-min">
+      <thead><tr><th>Script</th><th>Run it on</th><th>What it does</th></tr></thead>
+      <tbody>
+        <tr><td><strong><code>install-devops-tool.sh</code></strong></td><td>Each Linux server</td><td>Menu-driven installer for tools, aliases, dotfiles, the banner and clusters</td></tr>
+        <tr><td><strong><code>install-fonts.ps1</code></strong></td><td>Your Windows PC</td><td>Installs Cascadia + JetBrains Mono Nerd Fonts and can set the Windows Terminal font</td></tr>
+        <tr><td><strong><code>install-fonts.sh</code></strong></td><td>Your macOS / Linux desktop</td><td>Same fonts for macOS and Linux desktops; refuses to run on a headless server</td></tr>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<section class="s" id="how-it-fits">
+  <div class="s-head"><span class="s-num">02 · START HERE</span><h2>How it fits together</h2></div>
+  <p>Your computer draws the text. The server runs the tools. That's why fonts are installed on your PC, and everything else goes on the server.</p>
+  <figure class="fig">
+    <div class="fig-scroll"><svg data-diagram="where" role="img" aria-label="Your PC runs the terminal and fonts and connects over SSH to the server, where the installer puts tools in a bin folder and shell config in ~/.devops-toolbox, which starts a tmux session with the pinned banner."></svg></div>
+    <figcaption><b>Fig. 1</b><span>Fonts live on your PC. The installer writes tools and <code>~/.devops-toolbox</code> on the server, and every SSH login opens the tmux session with the pinned banner.</span></figcaption>
+  </figure>
+  <div class="callout key">
+    <span class="label">Key idea</span>
+    <p>Run <code>install-fonts</code> on the machine you SSH <em>from</em>. Fonts installed on a server never change how your terminal looks, so <code>install-fonts.sh</code> stops with an explanation when it detects a headless SSH session.</p>
+  </div>
+  <p>With sudo, tools go to <code>/usr/local/bin</code> and the package manager handles tmux, htop, ncdu and docker. Without sudo, static binaries go to <code>~/.local/bin</code>, and package-only tools are reported as skipped.</p>
+</section>
+
+<section class="s page" id="quick-start">
+  <div class="s-head"><span class="s-num">03 · START HERE</span><h2>Quick start</h2></div>
+  <div class="phase-tag"><span class="chip clay">Your PC</span><span class="chip sky">Server</span><span class="chip">~10 min</span></div>
+  <div class="table-wrap">
+    <table class="tbl-min">
+      <thead><tr><th>Step</th><th>Where</th><th>Do</th><th>You should see</th></tr></thead>
+      <tbody>
+        <tr><td class="wk">S1</td><td>Your PC</td><td>Install fonts (once)</td><td>"installed 12 / 16 styles", optional Windows Terminal font set</td></tr>
+        <tr><td class="wk">S2</td><td>Your PC</td><td>SSH into the server</td><td>A normal shell prompt</td></tr>
+        <tr><td class="wk">S3</td><td>Server</td><td>Run the installer and pick items</td><td>Profile screen, 5 checklists, review, progress, summary</td></tr>
+        <tr><td class="wk">S4</td><td>Server</td><td><code>exec bash</code>, or log out and back in</td><td>tmux opens with the pinned DEVOPS banner</td></tr>
+        <tr><td class="wk">S5</td><td>Server</td><td><code>toolbox-help</code></td><td>Every command available on this machine</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <h3>S1 · Fonts on your Windows PC</h3>
+  <div class="code">
+    <div class="code-head"><span class="file"><span class="lang">PowerShell</span>on your PC</span><button class="copy" type="button">Copy</button></div>
+<pre><code class="language-powershell">irm https://raw.githubusercontent.com/uthrapathy-m/devops-toolbox/main/install-fonts.ps1 | iex
+# choose [1] JetBrainsMono when asked, then restart Windows Terminal</code></pre>
+  </div>
+  <h3>S2–S4 · On the server</h3>
+  <div class="code">
+    <div class="code-head"><span class="file"><span class="lang">Bash</span>first login</span><button class="copy" type="button">Copy</button></div>
+<pre><code class="language-bash"># 1. connect (example: an Ubuntu EC2 instance)
+ssh -i ~/.ssh/my-key.pem ubuntu@&lt;server-ip&gt;
+
+# 2. install: interactive menus
+curl -fsSL https://raw.githubusercontent.com/uthrapathy-m/devops-toolbox/main/install-devops-tool.sh | bash
+
+# 3. load the new setup
+exec bash
+toolbox-help</code></pre>
+  </div>
+  <div class="callout done">
+    <span class="label">Done when</span>
+    <ul class="checks">
+      <li>The summary line ends with <code>✖ 0 failed</code>. If anything failed, its log is in <code>~/.devops-toolbox/logs/</code>.</li>
+      <li>A new SSH login lands in tmux with the DEVOPS banner pinned at the top.</li>
+      <li><code>toolbox-help</code> lists your aliases, and <code>z</code>, <code>k</code>, <code>ll</code> work.</li>
+    </ul>
+  </div>
+</section>
+
+<section class="s page" id="installer">
+  <div class="s-head"><span class="s-num">04 · HANDS-ON</span><h2>Installer menus</h2></div>
+  <p>The installer is a pure-bash menu with no dependencies. It works through <code>curl | bash</code> because it reads your keys from the terminal directly.</p>
+  <figure class="fig">
+    <div class="fig-scroll"><svg data-diagram="flow" role="img" aria-label="Installer flow: curl one-liner, choose a profile, adjust five category checklists, review, install with per-tool logs, then the banner. Flags like -p k8s -y skip the menus and go straight to install."></svg></div>
+    <figcaption><b>Fig. 2</b><span>The interactive path takes 3 screens. Flags (<code>-p</code>, <code>-t</code>, <code>-y</code>) skip straight to installing.</span></figcaption>
+  </figure>
+  <h3>Profiles</h3>
+  <div class="table-wrap">
+    <table class="tbl-min">
+      <thead><tr><th>Profile</th><th>Flag</th><th>Pre-ticks</th></tr></thead>
+      <tbody>
+        <tr><td><strong>Minimal</strong></td><td><code>minimal</code></td><td>fzf, zoxide, bat, btop, fastfetch, General and Git aliases</td></tr>
+        <tr><td><strong>Core CLI</strong></td><td><code>core</code></td><td>Minimal + eza, ripgrep, fd, jq, yq, tldr, ncdu, tmux, delta, lazygit, starship, htop, tmux.conf, fzf defaults, pinned banner</td></tr>
+        <tr><td><strong>K8s Ops</strong> <span class="chip clay">popular</span></td><td><code>k8s</code></td><td>Core + docker, kubectl, helm, k9s, sofka, k3d, kubectx, stern, lazydocker, dive, Kubernetes and Docker aliases, k9s / sofka setup</td></tr>
+        <tr><td><strong>Cloud</strong></td><td><code>cloud</code></td><td>Core + terraform, opentofu, ansible, AWS CLI, Azure CLI, gcloud</td></tr>
+        <tr><td><strong>Everything</strong></td><td><code>everything</code></td><td>All 42 items</td></tr>
+        <tr><td><strong>Custom</strong></td><td><code>custom</code></td><td>Nothing; tick items one by one</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <h3>Menu keys</h3>
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>Key</th><th>Action</th></tr></thead>
+      <tbody>
+        <tr><td><code>↑</code> <code>↓</code> (or <code>k</code> <code>j</code>)</td><td>Move</td></tr>
+        <tr><td><code>Space</code></td><td>Tick / untick the item</td></tr>
+        <tr><td><code>a</code></td><td>Tick all / none in this category</td></tr>
+        <tr><td><code>Enter</code></td><td>Next category (the last one goes to the review)</td></tr>
+        <tr><td><code>b</code></td><td>Back to the previous category</td></tr>
+        <tr><td><code>q</code></td><td>Quit without installing</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <p>A green <code>● 1.2.3</code> next to an item means it's already installed. It's skipped unless you pass <code>--upgrade</code>.</p>
+  <h3>Flags and examples</h3>
+  <div class="table-wrap">
+    <table class="tbl-min">
+      <thead><tr><th>Flag</th><th>Meaning</th></tr></thead>
+      <tbody>
+        <tr><td><code>-p, --profile NAME</code></td><td>Preselect a profile (and skip the profile screen)</td></tr>
+        <tr><td><code>-t, --tools a,b,c</code></td><td>Preselect exact items; combines with <code>-p</code></td></tr>
+        <tr><td><code>-y, --yes</code></td><td>No menus: install the preselection</td></tr>
+        <tr><td><code>-u, --upgrade</code></td><td>Reinstall tools that are already present, at their latest version</td></tr>
+        <tr><td><code>--theme NAME</code></td><td>Banner colours: ocean, amber, ice, snow, matrix, sand, lavender</td></tr>
+        <tr><td><code>--no-traefik</code></td><td>With the k3s item: skip the Traefik ingress</td></tr>
+        <tr><td><code>--no-banner</code> · <code>--list</code> · <code>--uninstall</code></td><td>No login banner · list item ids · remove the toolbox</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <div class="code">
+    <div class="code-head"><span class="file"><span class="lang">Bash</span>installer examples</span><button class="copy" type="button">Copy</button></div>
+<pre><code class="language-bash">URL=https://raw.githubusercontent.com/uthrapathy-m/devops-toolbox/main/install-devops-tool.sh
+
+curl -fsSL $URL | bash                                   # menus
+curl -fsSL $URL | bash -s -- -p k8s                      # K8s Ops pre-ticked, still adjustable
+curl -fsSL $URL | bash -s -- -p k8s -y --theme matrix    # no questions
+curl -fsSL $URL | bash -s -- -t fzf,btop,zoxide,alias-git -y
+curl -sfL https://get.k3s.io | sh -s - --disable traefik  # real k3s server (k3s itself)
+curl -fsSL $URL | bash -s -- -p everything -y --upgrade  # update everything
+curl -fsSL $URL | bash -s -- --list                      # all item ids</code></pre>
+  </div>
+  <div class="callout warn">
+    <span class="label">Rate limit</span>
+    <p>Most tools come from their latest GitHub release, and GitHub allows 60 unauthenticated API calls per hour per IP. If several servers install at the same time from one NAT, run <code>export GITHUB_TOKEN=…</code> first.</p>
+  </div>
+</section>
+
+<section class="s page" id="banner">
+  <div class="s-head"><span class="s-num">05 · HANDS-ON</span><h2>Pinned banner &amp; tmux</h2></div>
+  <p>With the <strong>pinned banner</strong> item, every SSH login joins a tmux session named <code>main</code>. Each tmux window gets a read-only 10-row pane at the top that redraws every 5 seconds:</p>
+  <div class="code">
+    <div class="code-head"><span class="file"><span class="lang">Text</span>what the top of your screen looks like</span><button class="copy" type="button">Copy</button></div>
+<pre><code>  ██████╗  ███████╗ ██╗   ██╗  ██████╗  ██████╗  ███████╗
+  ██╔══██╗ ██╔════╝ ██║   ██║ ██╔═══██╗ ██╔══██╗ ██╔════╝
+  ██║  ██║ █████╗   ██║   ██║ ██║   ██║ ██████╔╝ ███████╗
+  ██║  ██║ ██╔══╝   ╚██╗ ██╔╝ ██║   ██║ ██╔═══╝  ╚════██║
+  ██████╔╝ ███████╗  ╚████╔╝  ╚██████╔╝ ██║      ███████║
+  ╚═════╝  ╚══════╝   ╚═══╝    ╚═════╝  ╚═╝      ╚══════╝
+  Sat 14 Nov 2026  11:23    © 2026 ubuntu@ip-10-0-1-15
+  ============================================================================
+  Kernel 7.0.0 · up 0d 1h 50m · load 0.00 · 2 CPU · Ubuntu 24.04.5
+  Mem 0.7G/7.6G · Disk 7.4G/19G (41%) · IP 10.0.1.15 · ⎈ k3d-dev
+────────────────────────────────────────────────────────────────────
+  Welcome to ip-10-0-1-15, ubuntu! Your DevOps toolbox is ready.
+ubuntu in ssh ip-10-0-1-15 in ~
+❯ _</code></pre>
+  </div>
+  <div class="cols-2">
+    <div class="card clay"><span class="tag">Why tmux</span><h4>Your work survives disconnects</h4><p>If Wi-Fi drops, your commands keep running. SSH back in and you're exactly where you were.</p></div>
+    <div class="card sky"><span class="tag">Safe</span><h4>Never locks you out</h4><p>Only the first shell of an SSH login attaches, never nested shells or VS Code terminals. If tmux fails, you get a normal shell.</p></div>
+  </div>
+  <h3>Keys (prefix <code>Ctrl-a</code>)</h3>
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>Keys</th><th>Action</th></tr></thead>
+      <tbody>
+        <tr><td><code>Ctrl-a</code> <code>b</code></td><td>Hide / show the pinned banner in this window</td></tr>
+        <tr><td><code>Ctrl-a</code> <code>z</code></td><td>Zoom the current pane to full screen (again to restore)</td></tr>
+        <tr><td><code>Ctrl-a</code> <code>c</code> / <code>n</code> / <code>p</code> / <code>w</code></td><td>New window / next / previous / pick from a list</td></tr>
+        <tr><td><code>Ctrl-a</code> <code>|</code> / <code>-</code></td><td>Split side by side / top and bottom</td></tr>
+        <tr><td><code>Ctrl-a</code> <code>h j k l</code> (<code>H J K L</code>)</td><td>Move between panes (resize)</td></tr>
+        <tr><td><code>Ctrl-a</code> <code>[</code></td><td>Scroll back / copy mode (<code>q</code> to leave)</td></tr>
+        <tr><td><code>Ctrl-a</code> <code>d</code></td><td>Detach: work keeps running; reattach with <code>tmux a</code> or a new SSH login</td></tr>
+        <tr><td><code>Ctrl-a</code> <code>S</code></td><td>Show / hide the tmux status bar (off by default)</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <div class="code">
+    <div class="code-head"><span class="file"><span class="lang">Bash</span>banner controls</span><button class="copy" type="button">Copy</button></div>
+<pre><code class="language-bash">toolbox-pin off        # remove the pinned banner everywhere (remembered)
+toolbox-pin on         # bring it back in every window
+toolbox-banner         # print the full banner once
+
+# turn off auto-tmux on SSH, keep everything else
+echo 'export DEVOPS_TOOLBOX_TMUX=0' &gt;&gt; ~/.devops-toolbox/custom.sh
+
+# login banner style: 1 = toolbox banner, fastfetch, 0 = off
+echo 'export DEVOPS_TOOLBOX_BANNER=fastfetch' &gt;&gt; ~/.devops-toolbox/custom.sh</code></pre>
+  </div>
+  <p class="hint">The pinned pane is skipped on windows smaller than 26 rows or 60 columns. In that case the full banner prints once at login instead.</p>
+</section>
+
+<section class="s" id="themes">
+  <div class="s-head"><span class="s-num">06 · HANDS-ON</span><h2>Themes</h2></div>
+  <p>Seven colour themes, inspired by bashfolio. One command recolours the banner, the pinned pane, k9s and sofka together, live.</p>
+  <div class="table-wrap">
+    <table class="tbl-min">
+      <thead><tr><th>Theme</th><th>Logo gradient</th><th>Accent</th><th>sofka skin</th></tr></thead>
+      <tbody>
+        <tr><td><strong>ocean</strong> <span class="chip sky">default</span></td><td>cyan → deep blue</td><td>orange</td><td>tokyo-night</td></tr>
+        <tr><td><strong>amber</strong></td><td>gold → bronze</td><td>white</td><td>gruvbox-dark</td></tr>
+        <tr><td><strong>ice</strong></td><td>ice-blue → steel</td><td>pink</td><td>nord</td></tr>
+        <tr><td><strong>snow</strong></td><td>white → grey</td><td>orange / yellow</td><td>one-dark</td></tr>
+        <tr><td><strong>matrix</strong></td><td>neon green → dark green</td><td>white</td><td>monokai, recoloured green</td></tr>
+        <tr><td><strong>sand</strong></td><td>beige → tan</td><td>orange-red</td><td>flexoki-dark</td></tr>
+        <tr><td><strong>lavender</strong></td><td>purple → blue</td><td>purple</td><td>dracula</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <div class="code">
+    <div class="code-head"><span class="file"><span class="lang">Bash</span>switch themes</span><button class="copy" type="button">Copy</button></div>
+<pre><code class="language-bash">toolbox-theme            # colour swatches for all 7 themes
+toolbox-theme matrix     # switch now; saved to ~/.devops-toolbox/custom.sh
+curl -fsSL $URL | bash -s -- -p k8s -y --theme amber   # pick at install time</code></pre>
+  </div>
+  <div class="callout key">
+    <span class="label">Tip</span>
+    <p>Give each environment its own colour, for example <strong>matrix on prod</strong>, <strong>amber on staging</strong> and <strong>ocean on dev</strong>. A glance at the banner tells you where you are before you type <code>kubectl delete</code>.</p>
+  </div>
+</section>
+
+<section class="s page" id="kubernetes">
+  <div class="s-head"><span class="s-num">07 · HANDS-ON</span><h2>k9s &amp; sofka</h2></div>
+  <p>The <strong>k9s / sofka setup</strong> item (part of K8s Ops) gives both Kubernetes terminal UIs a skin that matches your theme, plus plugins, hotkeys and resource aliases. Start them with <code>k9</code> and <code>sf</code>.</p>
+  <h3>k9s plugins (added by the toolbox)</h3>
+  <div class="table-wrap">
+    <table class="tbl-min">
+      <thead><tr><th>Key</th><th>In view</th><th>Does</th></tr></thead>
+      <tbody>
+        <tr><td><code>Ctrl-L</code></td><td>pods, deployments, statefulsets, daemonsets</td><td>stern logs across every pod and container of the workload</td></tr>
+        <tr><td><code>Shift-D</code></td><td>containers</td><td>Attach a <code>netshoot</code> debug container (curl, dig, tcpdump…)</td></tr>
+        <tr><td><code>Shift-I</code></td><td>containers</td><td>Inspect the image's layers with dive</td></tr>
+        <tr><td><code>Shift-E</code></td><td>pods, deployments</td><td>Watch events in the namespace</td></tr>
+        <tr><td><code>Ctrl-G</code></td><td>namespaces</td><td><code>kubectl get all</code> for that namespace</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <h3>Hotkeys and built-ins worth knowing</h3>
+  <div class="table-wrap">
+    <table class="tbl-min">
+      <thead><tr><th>Key</th><th>Does</th></tr></thead>
+      <tbody>
+        <tr><td><code>Shift-0</code> … <code>Shift-7</code></td><td>Jump to pods / deployments / services / ingresses / nodes / events / helm / namespaces</td></tr>
+        <tr><td><code>:dp</code> <code>:sec</code> <code>:cm</code> <code>:jo</code> <code>:cj</code> <code>:np</code> <code>:pvc</code></td><td>Resource aliases added by the toolbox</td></tr>
+        <tr><td><code>l</code> · <code>s</code> · <code>d</code> · <code>e</code></td><td>Logs · shell into the container · describe · edit</td></tr>
+        <tr><td><code>Shift-F</code> · <code>x</code> · <code>Ctrl-D</code></td><td>Port-forward · decode a secret · delete</td></tr>
+        <tr><td><code>/</code> · <code>?</code> · <code>:q</code></td><td>Filter · all keys · quit</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <h3>Example: debug a crashing pod in under a minute</h3>
+  <div class="code">
+    <div class="code-head"><span class="file"><span class="lang">Text</span>inside k9s</span><button class="copy" type="button">Copy</button></div>
+<pre><code>k9                      # open k9s
+Shift-0                 # pods view
+/api                    # filter to the "api" pods; CrashLoopBackOff rows show in red
+Ctrl-L                  # stern: logs from every replica at once; Ctrl-C to return
+Enter                   # open the pod's containers
+Shift-D                 # netshoot debug container, sharing the pod's network
+  curl -v http://db:5432 ; dig db.default.svc.cluster.local
+Shift-E                 # watch events: image pull errors, OOMKilled, probe failures</code></pre>
+  </div>
+  <p>sofka is a newer Kubernetes UI written in Rust. <code>sofka import k9s</code> converts your k9s plugins and hotkeys for it, and <code>:skin</code> previews its skins. The toolbox manages only a marked skin block in <code>~/.config/sofka/config.toml</code>; the rest of the file is yours.</p>
+</section>
+
+<section class="s page" id="clusters">
+  <div class="s-head"><span class="s-num">08 · HANDS-ON</span><h2>k3s &amp; k3d clusters</h2></div>
+  <div class="cols-2">
+    <div class="card clay feature"><span class="tag">k3d · in K8s Ops</span><h4>Test clusters in Docker</h4><p>Multi-node on one machine, created in about 20 seconds and deleted just as fast. Needs Docker.</p></div>
+    <div class="card sky"><span class="tag">k3s server · opt-in</span><h4>A real cluster</h4><p>Runs as a systemd service and survives reboots. Other machines can join as workers. Needs sudo.</p></div>
+  </div>
+  <div class="code">
+    <div class="code-head"><span class="file"><span class="lang">Bash</span>k3d · test clusters in Docker</span><button class="copy" type="button">Copy</button></div>
+<pre><code class="language-bash">k3d cluster create dev --agents 2      # 1 server + 2 workers in Docker
+k3d cluster list                       # what's running
+k3d node list                          # the containers behind each node
+k3d cluster stop dev                   # pause it (start dev to resume)
+k3d cluster delete dev                 # remove it</code></pre>
+  </div>
+  <div class="code">
+    <div class="code-head"><span class="file"><span class="lang">Bash</span>k3s · a real server on this machine</span><button class="copy" type="button">Copy</button></div>
+<pre><code class="language-bash">curl -sfL https://get.k3s.io | sh -s - --disable traefik   # drop the flag to keep Traefik
+sudo systemctl status k3s              # running as a service
+sudo k3s kubectl get nodes             # works straight away, as root
+
+# use it as your normal user (kubectl, k9s, sofka)
+mkdir -p ~/.kube
+sudo cp /etc/rancher/k3s/k3s.yaml ~/.kube/config   # overwrites: back up an existing config first
+sudo chown "$USER": ~/.kube/config &amp;&amp; chmod 600 ~/.kube/config
+k get nodes
+
+/usr/local/bin/k3s-uninstall.sh        # remove k3s completely</code></pre>
+  </div>
+  <p>k3d adds each cluster to <code>~/.kube/config</code> by itself as the context <code>k3d-&lt;name&gt;</code>. For k3s you copy <code>/etc/rancher/k3s/k3s.yaml</code> once, as above. After that <code>k get nodes</code>, k9s and sofka work without sudo. Switch between clusters with <code>kctx</code>.</p>
+  <h3>Add worker machines</h3>
+  <figure class="fig">
+    <div class="fig-scroll"><svg data-diagram="k3s" role="img" aria-label="Two worker EC2 instances join a k3s server EC2 over TCP 6443 inside one VPC security group; you reach the server over SSH."></svg></div>
+    <figcaption><b>Fig. 3</b><span>Workers join the server's private IP on TCP 6443. All nodes also need UDP 8472 and TCP 10250 open between them.</span></figcaption>
+  </figure>
+  <div class="table-wrap">
+    <table class="tbl-min">
+      <thead><tr><th>Step</th><th>Where</th><th>Command</th></tr></thead>
+      <tbody>
+        <tr><td class="wk">J1</td><td>Server</td><td>Install k3s (above), then <code>sudo cat /var/lib/rancher/k3s/server/node-token</code></td></tr>
+        <tr><td class="wk">J2</td><td>AWS console / CLI</td><td>Security group: allow TCP 6443, UDP 8472, TCP 10250 from the same group</td></tr>
+        <tr><td class="wk">J3</td><td>Each worker</td><td><code>curl -sfL https://get.k3s.io | K3S_URL=https://&lt;server-private-ip&gt;:6443 K3S_TOKEN=&lt;token&gt; sh -</code></td></tr>
+        <tr><td class="wk">J4</td><td>Server</td><td><code>k get nodes</code>: every worker shows <code>Ready</code></td></tr>
+      </tbody>
+    </table>
+  </div>
+  <div class="code">
+    <div class="code-head"><span class="file"><span class="lang">Bash</span>J2 · open the ports (AWS CLI)</span><button class="copy" type="button">Copy</button></div>
+<pre><code class="language-bash">SG=sg-0123456789abcdef0     # the group all nodes share
+aws ec2 authorize-security-group-ingress --group-id $SG --ip-permissions \
+  "IpProtocol=tcp,FromPort=6443,ToPort=6443,UserIdGroupPairs=[{GroupId=$SG}]" \
+  "IpProtocol=udp,FromPort=8472,ToPort=8472,UserIdGroupPairs=[{GroupId=$SG}]" \
+  "IpProtocol=tcp,FromPort=10250,ToPort=10250,UserIdGroupPairs=[{GroupId=$SG}]"</code></pre>
+  </div>
+  <div class="callout warn">
+    <span class="label">Watch out</span>
+    <p>The join token works like a cluster password. Read it from <code>/var/lib/rancher/k3s/server/node-token</code> only when you need it, don't paste it into tickets or chat, and clear it from your shell history (<code>history -d</code>) after a join.</p>
+  </div>
+</section>
+
+<section class="s page" id="shell">
+  <div class="s-head"><span class="s-num">09 · HANDS-ON</span><h2>Aliases &amp; shell</h2></div>
+  <p>Four alias packs plus fzf helpers. Aliases that rely on a tool (for example <code>ls</code> → eza) only switch on when that tool is installed. Run <code>toolbox-help</code> to see what's active on the current machine.</p>
+  <div class="table-wrap">
+    <table class="tbl-min">
+      <thead><tr><th>Pack</th><th>Most used</th><th>Also</th></tr></thead>
+      <tbody>
+        <tr><td><strong>General</strong></td><td><code>ll</code> <code>..</code> <code>mkcd dir</code> <code>extract file</code> <code>ports</code> <code>myip</code></td><td><code>lt</code> (tree), <code>h text</code> (history grep), <code>reload</code>, <code>jf unit</code> (follow journal), <code>cat</code> → bat, <code>top</code> → btop</td></tr>
+        <tr><td><strong>Git</strong></td><td><code>gs</code> <code>ga</code> <code>gc "msg"</code> <code>gp</code> <code>gl</code></td><td><code>gaa</code> <code>gca</code> <code>gpl</code> <code>gd</code> <code>gds</code> <code>gco</code> <code>gsw</code> <code>gst</code> <code>gf</code> <code>lg</code> (lazygit)</td></tr>
+        <tr><td><strong>Kubernetes</strong></td><td><code>k</code> <code>kgp</code> <code>kl pod</code> <code>kex pod -- sh</code> <code>kns ns</code></td><td><code>kgpa</code> <code>kgs</code> <code>kgd</code> <code>kgn</code> <code>kge</code> <code>kd</code> <code>kaf</code> <code>kdel</code> <code>krr</code> <code>kpf</code> <code>kctx</code> <code>ktop</code></td></tr>
+        <tr><td><strong>Docker</strong></td><td><code>dps</code> <code>dex c sh</code> <code>dlog c</code> <code>dcu</code> <code>dcd</code></td><td><code>d</code> <code>dpsa</code> <code>di</code> <code>dc</code> <code>dcl</code> <code>dcp</code> <code>dcr</code> <code>dprune</code> <code>ld</code> (lazydocker)</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <h3>Search &amp; navigation</h3>
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>Command</th><th>Does</th></tr></thead>
+      <tbody>
+        <tr><td><code>z proj</code> · <code>zi</code></td><td>Jump to the most used directory matching "proj" · pick one interactively</td></tr>
+        <tr><td><code>Ctrl-R</code> · <code>Ctrl-T</code> · <code>Alt-C</code></td><td>Fuzzy history · fuzzy file picker with bat preview · fuzzy cd</td></tr>
+        <tr><td><code>fe</code> · <code>fkill</code> · <code>fh</code></td><td>Fuzzy-open a file in $EDITOR · fuzzy kill processes · re-run from history</td></tr>
+        <tr><td><code>kpod</code></td><td>Fuzzy-pick a pod in any namespace, for example <code>kl $(kpod)</code></td></tr>
+        <tr><td><code>rg text</code> · <code>fd name</code></td><td>Search file contents · find files by name</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <div class="code">
+    <div class="code-head"><span class="file"><span class="lang">Bash</span>~/.devops-toolbox/custom.sh: your own additions</span><button class="copy" type="button">Copy</button></div>
+<pre><code class="language-bash"># this file is never overwritten by the installer
+alias kprod='kubectl --context prod-cluster'
+alias tf='terraform'
+export DEVOPS_TOOLBOX_THEME=matrix      # also written by toolbox-theme</code></pre>
+  </div>
+</section>
+
+<section class="s page" id="workflows">
+  <div class="s-head"><span class="s-num">10 · REFERENCE</span><h2>Example workflows</h2></div>
+  <h3>A · A fresh EC2 instance ready in five minutes</h3>
+  <div class="code">
+    <div class="code-head"><span class="file"><span class="lang">Bash</span>new Ubuntu instance</span><button class="copy" type="button">Copy</button></div>
+<pre><code class="language-bash">ssh -i ~/.ssh/my-key.pem ubuntu@&lt;ip&gt;
+curl -fsSL https://raw.githubusercontent.com/uthrapathy-m/devops-toolbox/main/install-devops-tool.sh | bash -s -- -p k8s -y
+exit                                   # log out once (docker group + tmux)
+ssh -i ~/.ssh/my-key.pem ubuntu@&lt;ip&gt;   # lands in tmux with the pinned banner
+k3d cluster create dev --agents 2      # a 3-node cluster to play with
+k get nodes &amp;&amp; k9</code></pre>
+  </div>
+  <h3>B · Set up servers automatically at launch (user data)</h3>
+  <div class="code">
+    <div class="code-head"><span class="file"><span class="lang">Bash</span>EC2 user data / cloud-init</span><button class="copy" type="button">Copy</button></div>
+<pre><code class="language-bash">#!/bin/bash
+# runs as root at first boot; installs for the ubuntu user, no menus
+sudo -u ubuntu -H bash -c 'curl -fsSL https://raw.githubusercontent.com/uthrapathy-m/devops-toolbox/main/install-devops-tool.sh | bash -s -- -p core -y --theme amber'</code></pre>
+  </div>
+  <h3>C · A three-node k3s cluster on AWS</h3>
+  <div class="code">
+    <div class="code-head"><span class="file"><span class="lang">Bash</span>server + 2 workers</span><button class="copy" type="button">Copy</button></div>
+<pre><code class="language-bash"># on the server
+curl -fsSL $URL | bash -s -- -t kubectl,k9s,alias-k8s,dot-k8s-tui -y   # tools only
+curl -sfL https://get.k3s.io | sh -s - --disable traefik
+sudo cat /var/lib/rancher/k3s/server/node-token                     # copy the token
+hostname -I | awk '{print $1}'                                      # server private IP
+
+# on each worker (same security group, ports from section 08 open)
+curl -sfL https://get.k3s.io | K3S_URL=https://10.0.1.15:6443 K3S_TOKEN='K10…::server:…' sh -
+
+# back on the server (after copying k3s.yaml to ~/.kube/config, section 08)
+k get nodes -o wide                    # 3 nodes, all Ready</code></pre>
+  </div>
+  <h3>D · Colour-code environments</h3>
+  <div class="code">
+    <div class="code-head"><span class="file"><span class="lang">Bash</span>one theme per environment</span><button class="copy" type="button">Copy</button></div>
+<pre><code class="language-bash"># -i loads the toolbox in a non-tty shell (no tmux attach); output hidden
+ssh prod    "bash -ic 'toolbox-theme matrix'" &gt;/dev/null
+ssh staging "bash -ic 'toolbox-theme amber'"  &gt;/dev/null
+ssh dev     "bash -ic 'toolbox-theme ocean'"  &gt;/dev/null</code></pre>
+  </div>
+</section>
+
+<section class="s" id="files">
+  <div class="s-head"><span class="s-num">11 · REFERENCE</span><h2>Files, update, uninstall</h2></div>
+  <div class="table-wrap">
+    <table class="tbl-min">
+      <thead><tr><th>Path</th><th>Purpose</th><th>Safe to edit?</th></tr></thead>
+      <tbody>
+        <tr><td><code>~/.bashrc</code></td><td>One line that sources <code>~/.devops-toolbox/init.sh</code></td><td>Yes; keep that line</td></tr>
+        <tr><td><code>~/.devops-toolbox/init.sh</code></td><td>PATH, completions, zoxide / fzf / starship hooks, auto-tmux, banner</td><td>No: regenerated</td></tr>
+        <tr><td><code>~/.devops-toolbox/aliases.sh</code> · <code>banner.sh</code></td><td>Alias packs · banner, themes, <code>toolbox-help</code></td><td>No: regenerated</td></tr>
+        <tr><td><code>~/.devops-toolbox/custom.sh</code></td><td>Your own aliases and settings</td><td><span class="chip sage">Yes</span> never overwritten</td></tr>
+        <tr><td><code>~/.devops-toolbox/bin/</code></td><td><code>toolbox-pin</code>, <code>toolbox-status</code></td><td>No: regenerated</td></tr>
+        <tr><td><code>~/.devops-toolbox/logs/&lt;item&gt;.log</code></td><td>One install log per item</td><td>Read when something fails</td></tr>
+        <tr><td><code>~/.tmux.conf</code> · <code>~/.config/k9s/</code> · <code>~/.config/sofka/</code></td><td>Only when picked; your own files are backed up first</td><td>Yes</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <div class="code">
+    <div class="code-head"><span class="file"><span class="lang">Bash</span>maintain</span><button class="copy" type="button">Copy</button></div>
+<pre><code class="language-bash">curl -fsSL $URL | bash                          # add items (installed ones are skipped)
+curl -fsSL $URL | bash -s -- -p everything -y --upgrade   # update to latest releases
+/usr/local/bin/k3s-uninstall.sh                 # remove k3s first, if you installed it
+curl -fsSL $URL | bash -s -- --uninstall        # remove toolbox config + its binaries</code></pre>
+  </div>
+  <p class="hint">Uninstall keeps packages installed with apt/dnf (tmux, htop, docker) and keeps k3s, which is a system service. Remove those separately if you want them gone.</p>
+</section>
+
+<section class="s page" id="troubleshooting">
+  <div class="s-head"><span class="s-num">12 · REFERENCE</span><h2>Troubleshooting</h2></div>
+  <div class="table-wrap">
+    <table class="tbl-min">
+      <thead><tr><th>Symptom</th><th>Cause</th><th>Fix</th></tr></thead>
+      <tbody>
+        <tr><td><code>toolbox-help: command not found</code></td><td>The shell started before the install</td><td><code>exec bash</code>, or log out and back in</td></tr>
+        <tr><td>SSH: <code>Identity file … not accessible</code> / <code>Permission denied (publickey)</code></td><td>Wrong key path, or the key is readable by others</td><td>Check the path; on Windows: <code>icacls key.pem /inheritance:r /grant:r "$($env:USERNAME):R"</code></td></tr>
+        <tr><td>Item failed with "GitHub API failed"</td><td>API rate limit (60 per hour per IP)</td><td><code>export GITHUB_TOKEN=…</code> and re-run</td></tr>
+        <tr><td><code>docker: permission denied</code></td><td>The docker group applies only to new logins</td><td>Log out and back in</td></tr>
+        <tr><td>No pinned banner</td><td>Window under 26×60, or turned off</td><td>Make the terminal taller; <code>Ctrl-a b</code>; <code>toolbox-pin on</code></td></tr>
+        <tr><td>Want a plain shell instead of tmux</td><td>Auto-attach is on</td><td><code>Ctrl-a d</code> once, or set <code>DEVOPS_TOOLBOX_TMUX=0</code> in custom.sh</td></tr>
+        <tr><td>Fonts didn't change</td><td>Installed on the server, not your PC</td><td>Run <code>install-fonts</code> on your PC and restart the terminal</td></tr>
+        <tr><td>tmux / htop / ncdu / docker "needs sudo"</td><td>No sudo, and they only come from the package manager</td><td>Re-run with sudo access, or ask an admin</td></tr>
+        <tr><td>k3s worker never shows up</td><td>Security group, or public instead of private IP</td><td>Open 6443/tcp, 8472/udp, 10250/tcp; join with the private IP</td></tr>
+        <tr><td>Just-pushed change not picked up by <code>curl</code></td><td>raw.githubusercontent.com caches files</td><td>Wait about 5 minutes and try again</td></tr>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<section class="s" id="resources">
+  <div class="s-head"><span class="s-num">13 · REFERENCE</span><h2>Resources</h2></div>
+  <div class="table-wrap res">
+    <table class="tbl-min">
+      <thead><tr><th>Resource</th><th>Use it for</th></tr></thead>
+      <tbody>
+        <tr><td><a href="https://github.com/uthrapathy-m/devops-toolbox" target="_blank" rel="noopener">devops-toolbox repo</a></td><td>Scripts, README, screenshots of the banner and themes</td></tr>
+        <tr><td><a href="https://k9scli.io/topics/commands/" target="_blank" rel="noopener">k9s commands</a></td><td>Every k9s key and command</td></tr>
+        <tr><td><a href="https://github.com/nklmilojevic/sofka" target="_blank" rel="noopener">sofka</a></td><td>Configuration, skins, plugins</td></tr>
+        <tr><td><a href="https://docs.k3s.io/" target="_blank" rel="noopener">k3s documentation</a></td><td>Server options, networking requirements, upgrades</td></tr>
+        <tr><td><a href="https://k3d.io/" target="_blank" rel="noopener">k3d documentation</a></td><td>Cluster flags, registries, port mapping</td></tr>
+        <tr><td><a href="https://github.com/tmux/tmux/wiki" target="_blank" rel="noopener">tmux wiki</a></td><td>Windows, panes, copy mode</td></tr>
+        <tr><td><a href="https://www.nerdfonts.com/" target="_blank" rel="noopener">Nerd Fonts</a></td><td>Other font families with icon glyphs</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <footer class="end">
+    <span>DevOps Toolbox · User guide</span>
+    <span>Updated 14 November 2026</span>
+  </footer>
+</section>
+
+</div>
+</main>
+
+<script src="https://cdn.jsdelivr.net/npm/roughjs@4.6.6/bundled/rough.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/prism.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-python.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-yaml.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-bash.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-hcl.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-json.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-docker.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-typescript.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-go.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-sql.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-powershell.min.js"></script>
+
+<script>
+window.wx = function (week, x0, step) { return (x0 || 40) + week * (step || 26.5); };
+window.DIAGRAMS = {
+  where: { w: 760, h: 330,
+    nodes: [
+      { id: 'pc', kind: 'group', x: 20, y: 14, w: 230, h: 300, tone: 'plain', label: 'Your PC' },
+      { id: 'srv', kind: 'group', x: 300, y: 14, w: 440, h: 300, tone: 'sand', label: 'Linux server (EC2, VM)' },
+      { id: 'term', x: 45, y: 70, w: 180, h: 72, tone: 'sky', label: 'Terminal\nWindows Terminal' },
+      { id: 'fonts', x: 45, y: 210, w: 180, h: 72, tone: 'sand', label: 'Nerd Fonts\ninstall-fonts.ps1' },
+      { id: 'inst', x: 322, y: 70, w: 190, h: 72, tone: 'accent', label: 'Installer\ninstall-devops-tool' },
+      { id: 'tools', x: 546, y: 70, w: 172, h: 72, tone: 'sky', label: 'Tools\n/usr/local/bin' },
+      { id: 'home', x: 322, y: 200, w: 190, h: 90, tone: 'sand', label: '~/.devops-toolbox\ninit · aliases\nbanner · bin' },
+      { id: 'tmux', x: 546, y: 200, w: 172, h: 90, tone: 'sage', label: "tmux 'main'\npinned banner\n+ your shell" }
+    ],
+    edges: [
+      { from: 'term', to: 'inst', label: 'ssh' },
+      { from: 'fonts', to: 'term', fs: 't', ts: 'b', label: 'draws text' },
+      { from: 'inst', to: 'tools' },
+      { from: 'inst', to: 'home', fs: 'b', ts: 't' },
+      { from: 'home', to: 'tmux', label: 'login' }
+    ] },
+  flow: { w: 760, h: 200,
+    nodes: [
+      { id: 'c', x: 20, y: 30, w: 110, h: 80, tone: 'plain', label: 'curl|bash\none-liner' },
+      { id: 'p', x: 142, y: 30, w: 110, h: 80, tone: 'sky', label: 'Profile\n6 presets' },
+      { id: 'k', x: 264, y: 30, w: 110, h: 80, tone: 'accent', label: 'Checklists\n5 categories' },
+      { id: 'r', x: 386, y: 30, w: 110, h: 80, tone: 'sky', label: 'Review\nY to install' },
+      { id: 'i', x: 508, y: 30, w: 110, h: 80, tone: 'sand', label: 'Install\nlog per item' },
+      { id: 'b', x: 630, y: 30, w: 110, h: 80, tone: 'sage', label: 'Banner\nexec bash' }
+    ],
+    edges: [
+      { from: 'c', to: 'p' }, { from: 'p', to: 'k' }, { from: 'k', to: 'r' },
+      { from: 'r', to: 'i' }, { from: 'i', to: 'b' },
+      { pts: [[75, 110], [75, 160], [563, 160], [563, 110]], dash: true, label: '-p k8s -y skips the menus' }
+    ] },
+  k3s: { w: 760, h: 300,
+    nodes: [
+      { id: 'vpc', kind: 'group', x: 190, y: 14, w: 550, h: 270, tone: 'sand', label: 'VPC · one security group' },
+      { id: 'you', x: 20, y: 110, w: 130, h: 72, tone: 'plain', label: 'You\nssh + kubectl' },
+      { id: 'srv', x: 215, y: 100, w: 200, h: 92, tone: 'accent', label: 'k3s server\nget.k3s.io\nAPI :6443' },
+      { id: 'w1', x: 520, y: 50, w: 190, h: 72, tone: 'sky', label: 'Worker 1\nk3s agent' },
+      { id: 'w2', x: 520, y: 170, w: 190, h: 72, tone: 'sky', label: 'Worker 2\nk3s agent' }
+    ],
+    edges: [
+      { from: 'you', to: 'srv', label: 'ssh' },
+      { from: 'w1', to: 'srv', fs: 'l', ts: 'r', label: 'TCP 6443' },
+      { from: 'w2', to: 'srv', fs: 'l', ts: 'r', label: 'TCP 6443' }
+    ],
+    texts: [ { x: 215, y: 268, t: 'between all nodes: UDP 8472 (flannel) · TCP 10250 (kubelet)', size: 13, c: 'muted' } ] }
+};
+</script>
+<script>
+/* ===== ENGINE: do not edit. Renders DIAGRAMS with rough.js, copy buttons, print, mobile TOC, scrollspy. ===== */
+(function () {
+  var DIAGRAMS = window.DIAGRAMS || {};
+  var TONES = {
+    accent: ['clay-fill', 'clay'], sky: ['sky-fill', 'sky'], sage: ['sage-fill', 'sage'],
+    sand: ['sand-fill', 'sand'], plain: ['plain-fill', 'ink-2']
+  };
+  var NS = 'http://www.w3.org/2000/svg';
+
+  function palette() {
+    var usePrint = window.matchMedia && window.matchMedia('print').matches;
+    var src = usePrint ? document.getElementById('lightProbe') : document.documentElement;
+    var cs = getComputedStyle(src);
+    var names = ['paper', 'ink', 'ink-2', 'muted', 'line', 'clay', 'clay-fill', 'sky', 'sky-fill', 'sage', 'sage-fill', 'sand', 'sand-fill', 'plain-fill'];
+    var T = {};
+    names.forEach(function (n) { T[n] = cs.getPropertyValue('--' + n).trim() || '#888'; });
+    if (usePrint) T.paper = '#FFFFFF';
+    return T;
+  }
+
+  function text(svg, x, y, str, o) {
+    var t = document.createElementNS(NS, 'text');
+    t.setAttribute('x', x); t.setAttribute('y', y);
+    t.setAttribute('font-family', 'Kalam, "Segoe Print", "Comic Sans MS", cursive');
+    t.setAttribute('font-size', o.size || 15);
+    t.setAttribute('font-weight', o.weight || 400);
+    t.setAttribute('fill', o.fill);
+    t.setAttribute('text-anchor', o.anchor || 'start');
+    t.textContent = str;
+    svg.appendChild(t);
+    return t;
+  }
+
+  function side(n, s) {
+    if (s === 'l') return [n.x, n.y + n.h / 2];
+    if (s === 'r') return [n.x + n.w, n.y + n.h / 2];
+    if (s === 't') return [n.x + n.w / 2, n.y];
+    return [n.x + n.w / 2, n.y + n.h];
+  }
+  function autoSides(a, b) {
+    if (b.x >= a.x + a.w) return ['r', 'l'];
+    if (b.x + b.w <= a.x) return ['l', 'r'];
+    if (b.y >= a.y + a.h) return ['b', 't'];
+    return ['t', 'b'];
+  }
+
+  function draw(svg, spec, T) {
+    while (svg.firstChild) svg.removeChild(svg.firstChild);
+    svg.setAttribute('viewBox', '0 0 ' + spec.w + ' ' + spec.h);
+    var rc = rough.svg(svg);
+    var seed = 11;
+    var byId = {};
+    var base = { roughness: 1.1, bowing: 1.1, strokeWidth: 1.6 };
+    function opt(extra) { var o = {}; for (var k in base) o[k] = base[k]; for (var j in extra) o[j] = extra[j]; o.seed = seed++; return o; }
+
+    (spec.lines || []).forEach(function (l) {
+      var o = opt({ stroke: T[l.c || 'muted'], strokeWidth: l.sw || 1.3, roughness: 0.8 });
+      if (l.dash) o.strokeLineDash = [6, 6];
+      svg.appendChild(rc.line(l.p[0], l.p[1], l.p[2], l.p[3], o));
+    });
+
+    spec.nodes.forEach(function (n) {
+      byId[n.id] = n;
+      var tone = TONES[n.tone || 'plain'];
+      var fill = T[tone[0]], stroke = T[tone[1]];
+      if (n.kind === 'group') {
+        var g = opt({ stroke: stroke, strokeWidth: 1.5, strokeLineDash: [9, 7], roughness: 0.9 });
+        svg.appendChild(rc.rectangle(n.x, n.y, n.w, n.h, g));
+        text(svg, n.x + 14, n.y + 24, n.label, { size: 14, weight: 700, fill: stroke });
+        return;
+      }
+      var o = opt({
+        stroke: stroke, fill: fill,
+        fillStyle: n.hachure ? 'hachure' : 'solid',
+        hachureGap: 6, fillWeight: 1.4, hachureAngle: -41,
+        strokeWidth: n.tone === 'accent' ? 2.2 : 1.6
+      });
+      if (n.dash) o.strokeLineDash = [8, 6];
+      if (n.shape === 'db') {
+        svg.appendChild(rc.rectangle(n.x, n.y + 8, n.w, n.h - 8, o));
+        var e = opt({ stroke: stroke, fill: fill, fillStyle: 'solid', strokeWidth: 1.6 });
+        svg.appendChild(rc.ellipse(n.x + n.w / 2, n.y + 9, n.w, 18, e));
+      } else {
+        svg.appendChild(rc.rectangle(n.x, n.y, n.w, n.h, o));
+      }
+      if (!n.label) return;
+      var lines = n.label.split('\n');
+      var lh = 18, first = 20;
+      var total = first + (lines.length - 1) * lh;
+      var cy = n.y + n.h / 2 + (n.shape === 'db' ? 5 : 0);
+      var y = cy - total / 2 + 15;
+      lines.forEach(function (ln, i) {
+        text(svg, n.x + n.w / 2, y, ln, {
+          size: i === 0 ? 17 : 13.5, weight: i === 0 ? 700 : 400,
+          fill: i === 0 ? T.ink : T['ink-2'], anchor: 'middle'
+        });
+        y += i === 0 ? first + 1 : lh;
+      });
+    });
+
+    (spec.dots || []).forEach(function (d) {
+      svg.appendChild(rc.circle(d.x, d.y, 11, opt({ stroke: T.clay, fill: T.clay, fillStyle: 'solid', strokeWidth: 1.4 })));
+    });
+
+    (spec.edges || []).forEach(function (e) {
+      var pts;
+      if (e.pts) { pts = e.pts; }
+      else {
+        var a = byId[e.from], b = byId[e.to];
+        var s = autoSides(a, b);
+        pts = [side(a, e.fs || s[0]), side(b, e.ts || s[1])];
+      }
+      var o = opt({ stroke: T.muted, strokeWidth: 1.6, roughness: 0.9 });
+      if (e.dash) o.strokeLineDash = [7, 6];
+      if (pts.length === 2) svg.appendChild(rc.line(pts[0][0], pts[0][1], pts[1][0], pts[1][1], o));
+      else svg.appendChild(rc.linearPath(pts, o));
+      var p = pts[pts.length - 1], q = pts[pts.length - 2];
+      var ang = Math.atan2(p[1] - q[1], p[0] - q[0]);
+      var head = opt({ stroke: T.muted, strokeWidth: 1.6, roughness: 0.6 });
+      [0.45, -0.45].forEach(function (d) {
+        svg.appendChild(rc.line(p[0], p[1], p[0] - 13 * Math.cos(ang + d), p[1] - 13 * Math.sin(ang + d), head));
+      });
+      if (e.label) {
+        var mi = Math.floor((pts.length - 1) / 2);
+        var m0 = pts[mi], m1 = pts[mi + 1];
+        var mx = (m0[0] + m1[0]) / 2, my = (m0[1] + m1[1]) / 2;
+        var wpx = e.label.length * 7.2 + 12;
+        var r = document.createElementNS(NS, 'rect');
+        r.setAttribute('x', mx - wpx / 2); r.setAttribute('y', my - 11);
+        r.setAttribute('width', wpx); r.setAttribute('height', 20);
+        r.setAttribute('rx', 4); r.setAttribute('fill', T.paper);
+        svg.appendChild(r);
+        text(svg, mx, my + 4, e.label, { size: 13, fill: T.muted, anchor: 'middle' });
+      }
+    });
+
+    (spec.texts || []).forEach(function (t) {
+      text(svg, t.x, t.y, t.t, { size: t.size, weight: t.weight, anchor: t.anchor, fill: T[t.c || 'ink'] });
+    });
+  }
+
+  function renderAll() {
+    if (typeof rough === 'undefined') return;
+    var T = palette();
+    document.querySelectorAll('svg[data-diagram]').forEach(function (svg) {
+      var spec = DIAGRAMS[svg.getAttribute('data-diagram')];
+      if (spec) draw(svg, spec, T);
+    });
+  }
+
+  renderAll();
+  if (document.fonts && document.fonts.ready) document.fonts.ready.then(renderAll);
+  try {
+    window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', renderAll);
+    window.matchMedia('print').addEventListener('change', renderAll);
+  } catch (e) {}
+  window.addEventListener('beforeprint', renderAll);
+  window.addEventListener('afterprint', renderAll);
+  new MutationObserver(renderAll).observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] });
+
+  /* ---------- Copy buttons ---------- */
+  document.querySelectorAll('.code').forEach(function (block) {
+    var btn = block.querySelector('.copy');
+    var code = block.querySelector('pre code');
+    if (!btn || !code) return;
+    btn.addEventListener('click', function () {
+      var done = function () { btn.textContent = 'Copied'; btn.classList.add('ok'); setTimeout(function () { btn.textContent = 'Copy'; btn.classList.remove('ok'); }, 1600); };
+      var fallback = function () {
+        var range = document.createRange(); range.selectNodeContents(code);
+        var sel = window.getSelection(); sel.removeAllRanges(); sel.addRange(range);
+        btn.textContent = 'Selected, press Ctrl+C';
+      };
+      try {
+        navigator.clipboard.writeText(code.textContent).then(done, fallback);
+      } catch (e) { fallback(); }
+    });
+  });
+
+  /* ---------- Print ---------- */
+  var inFrame = (function () { try { return window.self !== window.top; } catch (e) { return true; } })();
+  document.getElementById('printBtn').addEventListener('click', function () {
+    if (inFrame) {
+      var note = document.getElementById('printNote');
+      note.hidden = !note.hidden;
+      return;
+    }
+    renderAll();
+    window.print();
+  });
+
+  /* ---------- Mobile contents ---------- */
+  var toggle = document.getElementById('tocToggle');
+  var scrim = document.getElementById('scrim');
+  function setNav(open) {
+    document.body.classList.toggle('nav-open', open);
+    toggle.setAttribute('aria-expanded', String(open));
+    scrim.hidden = !open;
+  }
+  toggle.addEventListener('click', function () { setNav(!document.body.classList.contains('nav-open')); });
+  scrim.addEventListener('click', function () { setNav(false); });
+  document.querySelectorAll('.toc a').forEach(function (a) { a.addEventListener('click', function () { setNav(false); }); });
+
+  /* ---------- Scrollspy ---------- */
+  var links = {};
+  document.querySelectorAll('.toc a').forEach(function (a) { links[a.getAttribute('href').slice(1)] = a; });
+  var current = null;
+  if ('IntersectionObserver' in window) {
+    var io = new IntersectionObserver(function (entries) {
+      entries.forEach(function (en) {
+        if (en.isIntersecting) {
+          if (current) current.classList.remove('active');
+          current = links[en.target.id];
+          if (current) current.classList.add('active');
+        }
+      });
+    }, { rootMargin: '-15% 0px -75% 0px' });
+    document.querySelectorAll('section.s[id]').forEach(function (s) { io.observe(s); });
+  }
+})();
+</script>
+
+</body>
+</html>

@@ -127,7 +127,7 @@ item alias-general shell alias -         "General aliases"    "ll, .., mkcd, ext
 item alias-git     shell alias -         "Git aliases"        "gs, ga, gc, gp, gl, gd, gco"
 item alias-k8s     shell alias -         "Kubernetes aliases" "k, kgp, kgs, kl, kex + completion"
 item alias-docker  shell alias -         "Docker aliases"     "d, dps, dc, dcu, dlog, dex"
-item dot-tmux      shell dotfile -       "tmux.conf"          "Mouse, sane splits, nice status bar"
+item dot-tmux      shell dotfile -       "tmux.conf"          "Mouse, Ctrl-a prefix, easy splits"
 item dot-fzf       shell dotfile -       "fzf defaults"       "fd-powered search + bat previews"
 item dot-k8s-tui   shell dotfile -       "k9s / sofka setup"  "Themed skins, plugins, hotkeys, aliases"
 item tmux-bar      shell dotfile -       "pinned banner"      "DEVOPS banner pinned on top (tmux on SSH)"
@@ -383,10 +383,19 @@ install_kubectx()    { gh_install ahmetb/kubectx kubectx 'kubectx_.*_linux_@ARCH
 install_stern()      { gh_install stern/stern stern 'stern_.*_linux_@ARCH@\.tar\.gz$'; }
 install_sofka()      { gh_install nklmilojevic/sofka sofka "${MUSL_OR_GNU[@]}"; }
 install_k3d()        { gh_install k3d-io/k3d k3d 'k3d-linux-@ARCH@$'; }
-install_k3s() {
+install_k3s() {  # plain upstream installer: curl -sfL https://get.k3s.io | sh -
   [ "$HAS_ROOT" = 1 ] || { echo "k3s server needs sudo/root"; return 1; }
-  local t="--traefik"; [ "$OPT_NO_TRAEFIK" = 1 ] && t="--no-traefik"
-  "$TOOLBOX_HOME/bin/toolbox-k3s" create k3s --yes "$t"
+  local args=""; [ "$OPT_NO_TRAEFIK" = 1 ] && args="--disable traefik"
+  curl -sfL https://get.k3s.io | $SUDO sh -s - $args || return 1
+  local i; for i in $(seq 1 60); do
+    $SUDO k3s kubectl get nodes --no-headers 2>/dev/null | grep -q ' Ready ' && break; sleep 2
+  done
+  # kubeconfig for the normal user: install it if there is none, never overwrite an existing one
+  mkdir -p "$HOME/.kube"
+  local dst="$HOME/.kube/config"; [ -e "$dst" ] && dst="$HOME/.kube/k3s.yaml"
+  $SUDO cat /etc/rancher/k3s/k3s.yaml > "$dst" && chmod 600 "$dst"
+  echo "kubeconfig written to $dst"
+  [ "$dst" = "$HOME/.kube/config" ] || echo "existing ~/.kube/config kept; use: export KUBECONFIG=~/.kube/config:~/.kube/k3s.yaml"
 }
 install_lazydocker() { gh_install jesseduffield/lazydocker lazydocker 'lazydocker_.*_linux_@ARCH@\.tar\.gz$'; }
 install_dive()       { gh_install wagoodman/dive dive 'dive_.*_linux_@ARCH@\.tar\.gz$'; }
@@ -937,6 +946,7 @@ tb_compact() {  # exactly 10 rows: logo (6) + tag + rule + 2 live lines — used
 
 _tb_s() { printf '\n  %s%s%s%s\n' "$TB_P" "$TB_B" "$1" "$TB_R"; }
 _tb_h() { printf '    %s%-26s%s %s%s%s\n' "$TB_G" "$1" "$TB_R" "$TB_D" "$2" "$TB_R"; }
+_tb_c() { printf '    %s%s%s\n      %s$ %s%s\n' "$TB_D" "$1" "$TB_R" "$TB_G" "$2" "$TB_R"; }   # label, then a full command
 _tb_has() { command -v "$1" >/dev/null 2>&1 || alias "$1" >/dev/null 2>&1 || declare -F "$1" >/dev/null 2>&1; }
 toolbox-help() {
   tb__init
@@ -991,13 +1001,19 @@ toolbox-help() {
     _tb_h "dprune" "remove everything unused"
     _tb_has ld && _tb_h "ld" "lazydocker"
   fi
-  if _tb_has toolbox-k3s && { _tb_has k3d || _tb_has k3s; }; then
-    _tb_s "Clusters (k3s / k3d)"
-    _tb_h "toolbox-k3s" "interactive menu: create / join / status / delete"
-    _tb_h "toolbox-k3s create k3d dev" "k3s-in-Docker cluster (--agents N, --no-traefik)"
-    _tb_h "toolbox-k3s create k3s" "real k3s server on this machine"
-    _tb_h "toolbox-k3s token" "join command for worker machines"
-    _tb_h "toolbox-k3s status" "clusters, contexts and nodes"
+  if _tb_has k3d || _tb_has k3s || _tb_has kubectl; then
+    _tb_s "k3d clusters (k3s in Docker, for testing)"
+    _tb_c "create 1 server + 2 workers" "k3d cluster create dev --agents 2"
+    _tb_c "create without Traefik" "k3d cluster create dev --k3s-arg '--disable=traefik@server:*'"
+    _tb_c "list / stop / start" "k3d cluster list   ·   k3d cluster stop dev   ·   k3d cluster start dev"
+    _tb_c "delete" "k3d cluster delete dev"
+    _tb_s "k3s cluster (real, systemd)$(_tb_has k3s && printf '  %s· installed here%s' "$TB_D" "$TB_R")"
+    _tb_c "1. install server" "curl -sfL https://get.k3s.io | sh -s - --disable traefik"
+    _tb_c "2. kubeconfig for you" "mkdir -p ~/.kube && sudo cat /etc/rancher/k3s/k3s.yaml > ~/.kube/config && chmod 600 ~/.kube/config"
+    _tb_c "3. check" "sudo systemctl status k3s   ·   kubectl get nodes -o wide"
+    _tb_c "4. join token + server IP" "sudo cat /var/lib/rancher/k3s/server/node-token   ·   hostname -I"
+    _tb_c "5. join a worker (run on the worker; AWS: allow TCP 6443, UDP 8472, TCP 10250 between nodes)" "curl -sfL https://get.k3s.io | K3S_URL=https://<server-ip>:6443 K3S_TOKEN=<token> sh -"
+    _tb_c "uninstall server / worker" "sudo k3s-uninstall.sh   ·   sudo k3s-agent-uninstall.sh"
   fi
   if [ -f "$HOME/.devops-toolbox/tmux-theme.conf" ] && _tb_has tmux; then
     _tb_s "tmux (pinned banner)"
@@ -1030,278 +1046,6 @@ toolbox-help() {
 alias toolbox-banner='tb_banner'
 eval "$_tb_ea"; unset _tb_ea
 BANNER_EOF
-}
-
-# ──────────────────────────── toolbox-k3s helper ────────────────────
-emit_k3s_helper() {
-  mkdir -p "$(dirname "$1")"
-  cat > "$1" <<'K3S_EOF'
-#!/usr/bin/env bash
-# toolbox-k3s — create, join and manage k3s / k3d clusters (devops-toolbox)
-set -o pipefail
-if [ -t 1 ]; then C=$'\e[36m'; G=$'\e[32m'; Y=$'\e[33m'; RED=$'\e[31m'; B=$'\e[1m'; D=$'\e[2m'; R=$'\e[0m'
-else C=; G=; Y=; RED=; B=; D=; R=; fi
-ok()   { printf "  ${G}✔${R} %s\n" "$*"; }
-info() { printf "  ${C}➜${R} %s\n" "$*"; }
-warn() { printf "  ${Y}⚠${R} %s\n" "$*"; }
-die()  { printf "  ${RED}✖${R} %s\n" "$*" >&2; exit 1; }
-
-YES=0; NO_TRAEFIK=""; AGENTS=""
-SUDO=""; [ "$(id -u)" -ne 0 ] && SUDO=sudo
-KCFG="$HOME/.kube/config"
-TOKEN_FILE=/var/lib/rancher/k3s/server/node-token
-
-usage() {
-  cat <<EOF
-
-  ${B}toolbox-k3s${R} — k3s & k3d clusters
-
-  ${B}Interactive${R}
-    toolbox-k3s                         menu
-
-  ${B}k3s (real cluster on this machine, systemd)${R}
-    toolbox-k3s create k3s [--no-traefik]     install a k3s server here
-    toolbox-k3s token                         show the join command for workers
-    toolbox-k3s join <https://ip:6443> <token>  join THIS machine as a worker
-    toolbox-k3s delete k3s                    uninstall k3s (server or agent)
-
-  ${B}k3d (k3s in Docker, for testing)${R}
-    toolbox-k3s create k3d [name] [--agents N] [--no-traefik]
-    toolbox-k3s delete k3d [name]
-
-  ${B}Both${R}
-    toolbox-k3s status                  what's running + nodes
-    toolbox-k3s kubeconfig              re-copy the k3s kubeconfig into ~/.kube/config
-
-  ${D}-y / --yes accepts defaults without asking.${R}
-
-EOF
-}
-
-ask() {  # ask "question" y|n  → returns 0 for yes
-  local def=${2:-n} a
-  if [ "$YES" = 1 ] || [ ! -r /dev/tty ]; then [ "$def" = y ]; return; fi
-  printf "  ${C}?${R} %s ${D}[%s]${R} " "$1" "$([ "$def" = y ] && echo Y/n || echo y/N)"
-  IFS= read -r a </dev/tty || a=""
-  a=${a:-$def}; [[ "$a" =~ ^[Yy] ]]
-}
-confirm() {  # confirm "question" — destructive actions: --yes means YES
-  [ "$YES" = 1 ] && return 0
-  [ -r /dev/tty ] || return 1
-  ask "$1" n
-}
-ask_value() {  # ask_value "question" default → prints answer
-  local a
-  if [ "$YES" = 1 ] || [ ! -r /dev/tty ]; then echo "$2"; return; fi
-  printf "  ${C}?${R} %s ${D}[%s]${R} " "$1" "$2" >&2
-  IFS= read -r a </dev/tty || a=""
-  echo "${a:-$2}"
-}
-need_sudo() { [ -z "$SUDO" ] || sudo -n true 2>/dev/null || sudo -v || die "This needs sudo/root."; }
-private_ip() { hostname -I 2>/dev/null | awk '{print $1}'; }
-
-merge_kubeconfig() {  # merge_kubeconfig <file> <name> — adds/replaces context <name> in ~/.kube/config
-  local src=$1 name=$2 tmp
-  command -v kubectl >/dev/null || { warn "kubectl not found; kubeconfig left at $src"; return 1; }
-  tmp=$(mktemp)
-  sed -E "s/^([[:space:]-]*(name|cluster|user|current-context):) default$/\1 $name/" "$src" > "$tmp"
-  mkdir -p "$HOME/.kube"; chmod 700 "$HOME/.kube"
-  if [ -s "$KCFG" ]; then
-    cp "$KCFG" "$KCFG.bak.$(date +%s)"
-    kubectl --kubeconfig "$KCFG" config delete-context "$name" >/dev/null 2>&1
-    kubectl --kubeconfig "$KCFG" config delete-cluster "$name" >/dev/null 2>&1
-    kubectl --kubeconfig "$KCFG" config delete-user    "$name" >/dev/null 2>&1
-    KUBECONFIG="$KCFG:$tmp" kubectl config view --flatten > "$tmp.merged" && command mv -f "$tmp.merged" "$KCFG"
-  else
-    command cp -f "$tmp" "$KCFG"
-  fi
-  chmod 600 "$KCFG"; rm -f "$tmp"
-  kubectl config use-context "$name" >/dev/null && ok "kubeconfig: context '$name' added to ~/.kube/config and selected (backup kept)"
-}
-
-k3s_kubeconfig() {
-  $SUDO test -f /etc/rancher/k3s/k3s.yaml || die "No k3s server on this machine."
-  local f; f=$(mktemp)
-  $SUDO cat /etc/rancher/k3s/k3s.yaml > "$f" && merge_kubeconfig "$f" "k3s-$(hostname -s)"
-  rm -f "$f"
-}
-
-show_join() {
-  need_sudo
-  $SUDO test -f "$TOKEN_FILE" || die "No k3s server on this machine (run: toolbox-k3s create k3s)."
-  local token ip pub imds
-  token=$($SUDO cat "$TOKEN_FILE"); ip=$(private_ip)
-  imds=$(curl -s -X PUT --max-time 2 http://169.254.169.254/latest/api/token -H 'X-aws-ec2-metadata-token-ttl-seconds: 60' 2>/dev/null)
-  [ -n "$imds" ] && pub=$(curl -s --max-time 2 -H "X-aws-ec2-metadata-token: $imds" http://169.254.169.254/latest/meta-data/public-ipv4 2>/dev/null)
-  printf "\n  ${B}Join another machine as a worker${R}  ${D}(run this ON the new machine)${R}\n\n"
-  printf "    ${G}toolbox-k3s join https://%s:6443 %s${R}\n\n" "$ip" "$token"
-  printf "  ${D}Without the toolbox:${R}\n    curl -sfL https://get.k3s.io | K3S_URL=https://%s:6443 K3S_TOKEN=%s sh -\n\n" "$ip" "$token"
-  printf "  ${Y}Network:${R} workers must reach this server on ${B}TCP 6443${R}; all nodes need ${B}UDP 8472${R} (flannel) and ${B}TCP 10250${R} between them.\n"
-  printf "  ${D}On AWS, allow those ports in the security group from the same SG or the VPC CIDR, and use the private IP (%s)%s.${R}\n\n" \
-    "$ip" "${pub:+. Public IP: $pub (only if workers are outside the VPC)}"
-}
-
-create_k3s() {
-  need_sudo
-  if systemctl is-active --quiet k3s 2>/dev/null; then
-    warn "A k3s server is already running here; refreshing kubeconfig only."
-  else
-    systemctl is-active --quiet k3s-agent 2>/dev/null && die "This machine is a k3s worker. Run 'toolbox-k3s delete k3s' first."
-    if [ -z "$NO_TRAEFIK" ]; then
-      if ask "Disable the built-in Traefik ingress? (yes if you'll use nginx-ingress etc.)" n; then NO_TRAEFIK=1; else NO_TRAEFIK=0; fi
-    fi
-    local exec_args="server --write-kubeconfig-mode 600"
-    [ "$NO_TRAEFIK" = 1 ] && exec_args+=" --disable traefik"
-    info "Installing k3s: $exec_args"
-    curl -sfL https://get.k3s.io | $SUDO env INSTALL_K3S_EXEC="$exec_args" sh - || die "k3s install failed."
-  fi
-  info "Waiting for the node to become Ready…"
-  local i ready=0
-  for i in $(seq 1 60); do   # up to ~3 minutes; the node object appears a few seconds after install
-    if $SUDO k3s kubectl get nodes --no-headers 2>/dev/null | grep -q ' Ready '; then ready=1; break; fi
-    sleep 3
-  done
-  [ "$ready" = 1 ] && ok "Node is Ready." || warn "Node not Ready yet. Check with: sudo k3s kubectl get nodes"
-  k3s_kubeconfig
-  kubectl get nodes -o wide 2>/dev/null | sed 's/^/    /'
-  if [ "$YES" = 1 ]; then
-    info "To add worker machines, run 'toolbox-k3s token' here (prints the join command)."
-  else
-    show_join
-  fi
-}
-
-join_k3s() {
-  local url=$1 token=$2
-  need_sudo
-  systemctl is-active --quiet k3s 2>/dev/null && die "This machine is already a k3s server."
-  [ -n "$url" ]   || url=$(ask_value "Server URL" "https://<server-private-ip>:6443")
-  [ -n "$token" ] || token=$(ask_value "Join token (from 'toolbox-k3s token' on the server)" "")
-  [[ "$url" == https://*:6443 ]] && [[ "$url" != *"<"* ]] && [ -n "$token" ] \
-    || die "Usage: toolbox-k3s join https://<server-ip>:6443 <token>"
-  info "Checking the server is reachable…"
-  curl -sk --max-time 5 "$url/ping" >/dev/null 2>&1 || warn "Could not reach $url. Check the security group allows TCP 6443 from this machine."
-  curl -sfL https://get.k3s.io | $SUDO env K3S_URL="$url" K3S_TOKEN="$token" sh - || die "k3s agent install failed."
-  ok "Joined as a worker. On the server run: kubectl get nodes"
-}
-
-k3d_run() {  # k3d with Docker access, even right after being added to the docker group
-  command -v docker >/dev/null || die "Docker is required for k3d (tick 'docker' in the toolbox menu)."
-  if docker info >/dev/null 2>&1; then k3d "$@"
-  elif id -nG "$USER" 2>/dev/null | grep -qw docker; then sg docker -c "$(printf '%q ' k3d "$@")"
-  else die "No permission to use Docker. Run: sudo usermod -aG docker $USER, then log out and back in."; fi
-}
-
-create_k3d() {
-  command -v k3d >/dev/null || die "k3d is not installed (re-run the toolbox installer and tick k3d)."
-  local name=$1 agents=$AGENTS
-  [ -n "$name" ]   || name=$(ask_value "Cluster name" "dev")
-  [ -n "$agents" ] || agents=$(ask_value "Number of worker (agent) nodes" "2")
-  [[ "$agents" =~ ^[0-9]+$ ]] || die "Agents must be a number."
-  if [ -z "$NO_TRAEFIK" ]; then
-    if ask "Disable the built-in Traefik ingress?" n; then NO_TRAEFIK=1; else NO_TRAEFIK=0; fi
-  fi
-  local args=(cluster create "$name" --agents "$agents" --wait --timeout 300s
-              --kubeconfig-update-default --kubeconfig-switch-context)
-  [ "$NO_TRAEFIK" = 1 ] && args+=(--k3s-arg "--disable=traefik@server:*")
-  info "Creating k3d cluster '$name' (1 server + $agents agents)…"
-  k3d_run "${args[@]}" || die "k3d cluster create failed."
-  chmod 600 "$KCFG" 2>/dev/null
-  ok "Cluster ready, kubectl context: k3d-$name"
-  kubectl get nodes 2>/dev/null | sed 's/^/    /'
-}
-
-delete_k3d() {
-  local name=$1
-  [ -n "$name" ] || { k3d_run cluster list; name=$(ask_value "Cluster to delete" "dev"); }
-  confirm "Delete k3d cluster '$name'?" || exit 0
-  k3d_run cluster delete "$name"
-}
-
-delete_k3s() {
-  need_sudo
-  local s=""
-  [ -x /usr/local/bin/k3s-uninstall.sh ] && s=/usr/local/bin/k3s-uninstall.sh
-  [ -x /usr/local/bin/k3s-agent-uninstall.sh ] && s=/usr/local/bin/k3s-agent-uninstall.sh
-  [ -n "$s" ] || die "k3s is not installed on this machine."
-  confirm "Uninstall k3s from this machine? All workloads on it are deleted." || exit 0
-  $SUDO "$s"
-  if command -v kubectl >/dev/null && [ -s "$KCFG" ]; then
-    local n="k3s-$(hostname -s)" was other
-    was=$(kubectl config current-context 2>/dev/null)
-    kubectl config delete-context "$n" >/dev/null 2>&1; kubectl config delete-cluster "$n" >/dev/null 2>&1
-    kubectl config delete-user "$n" >/dev/null 2>&1
-    if [ "$was" = "$n" ]; then   # don't leave kubectl pointing at a deleted cluster
-      other=$(kubectl config get-contexts -o name 2>/dev/null | head -1)
-      if [ -n "$other" ]; then kubectl config use-context "$other" >/dev/null && info "kubectl context switched to '$other'"
-      else kubectl config unset current-context >/dev/null 2>&1; fi
-    fi
-  fi
-  ok "k3s removed."
-}
-
-status() {
-  printf "\n  ${B}k3s${R}\n"
-  if systemctl is-active --quiet k3s 2>/dev/null; then ok "server running ($(k3s --version 2>/dev/null | head -1 | awk '{print $3}'))"
-  elif systemctl is-active --quiet k3s-agent 2>/dev/null; then ok "agent (worker) running"
-  else info "not running on this machine"; fi
-  printf "\n  ${B}k3d${R}\n"
-  if command -v k3d >/dev/null; then k3d_run cluster list 2>&1 | sed 's/^/    /'; else info "k3d not installed"; fi
-  printf "\n  ${B}kubectl${R}\n"
-  if command -v kubectl >/dev/null && [ -s "$KCFG" ]; then
-    info "current context: $(kubectl config current-context 2>/dev/null)"
-    kubectl get nodes 2>&1 | sed 's/^/    /'
-  else info "no kubeconfig yet"; fi
-  echo
-}
-
-menu() {
-  local c
-  while true; do
-    printf "\n  ${C}${B}toolbox-k3s${R} ${D}· k3s & k3d clusters${R}\n  ${D}──────────────────────────────────────────────────${R}\n"
-    printf "   ${B}1${R}) Create k3s server on THIS machine  ${D}(systemd, survives reboots)${R}\n"
-    printf "   ${B}2${R}) Show join command for workers\n"
-    printf "   ${B}3${R}) Join THIS machine to a k3s server  ${D}(worker)${R}\n"
-    printf "   ${B}4${R}) Create k3d cluster                 ${D}(k3s in Docker, multi-node)${R}\n"
-    printf "   ${B}5${R}) Delete k3d cluster\n"
-    printf "   ${B}6${R}) Status\n"
-    printf "   ${B}7${R}) Uninstall k3s from this machine\n"
-    printf "   ${B}q${R}) Quit\n\n  Choice: "
-    IFS= read -r c </dev/tty || exit 0
-    case "$c" in
-      1) ( create_k3s ) ;; 2) ( show_join ) ;; 3) ( join_k3s ) ;; 4) ( create_k3d ) ;;
-      5) ( delete_k3d ) ;; 6) ( status ) ;; 7) ( delete_k3s ) ;; q|Q|"") exit 0 ;;
-      *) warn "Unknown choice: $c" ;;
-    esac
-  done
-}
-
-cmd=${1:-menu}; [ $# -gt 0 ] && shift
-ARGS=()
-while [ $# -gt 0 ]; do
-  case "$1" in
-    -y|--yes) YES=1 ;;
-    --no-traefik) NO_TRAEFIK=1 ;;
-    --traefik) NO_TRAEFIK=0 ;;
-    --agents) AGENTS=$2; shift ;;
-    --agents=*) AGENTS=${1#*=} ;;
-    *) ARGS+=("$1") ;;
-  esac
-  shift
-done
-case "$cmd" in
-  menu)        [ -r /dev/tty ] || { usage; exit 1; }; menu ;;
-  create)      case "${ARGS[0]}" in k3s) create_k3s ;; k3d) create_k3d "${ARGS[1]}" ;; *) die "Usage: toolbox-k3s create k3s|k3d [name]" ;; esac ;;
-  join)        join_k3s "${ARGS[0]}" "${ARGS[1]}" ;;
-  token|join-cmd) show_join ;;
-  delete)      case "${ARGS[0]}" in k3s) delete_k3s ;; k3d) delete_k3d "${ARGS[1]}" ;; *) die "Usage: toolbox-k3s delete k3s|k3d [name]" ;; esac ;;
-  status|list) status ;;
-  kubeconfig)  need_sudo; k3s_kubeconfig ;;
-  -h|--help|help) usage ;;
-  *) usage; exit 1 ;;
-esac
-K3S_EOF
-  chmod +x "$1"
 }
 
 # ──────────────────────────── shell config ──────────────────────────
@@ -1553,7 +1297,7 @@ do_uninstall() {
     done < "$BINS_FILE"
   fi
   sed -i '/# devops-toolbox$/d' "$HOME/.bashrc" 2>/dev/null
-  command -v k3s >/dev/null 2>&1 && warn "k3s stays installed (system service). Remove it with: toolbox-k3s delete k3s (before uninstalling), or sudo /usr/local/bin/k3s-uninstall.sh"
+  command -v k3s >/dev/null 2>&1 && warn "k3s stays installed (system service). Remove it with: sudo /usr/local/bin/k3s-uninstall.sh"
   rm -rf "$TOOLBOX_HOME"
   ok "Removed. Packages from apt/dnf (tmux, htop, docker, …) were left in place."
   ok "Open a new shell to finish."
@@ -1787,7 +1531,7 @@ main() {
   [ -t 1 ] && printf '\e[H\e[2J'
   printf "\n  ${B}${CYN}Installing %s items${R} ${DIM}(logs: %s)${R}\n\n" "${#selected[@]}" "$LOG_DIR"
   ensure_prereqs
-  emit_k3s_helper "$TOOLBOX_HOME/bin/toolbox-k3s"   # used by the k3s item and available as a command
+  rm -f "$TOOLBOX_HOME/bin/toolbox-k3s"   # retired helper from older versions
   local c printed
   for c in "${CATEGORIES[@]}"; do
     printed=0
