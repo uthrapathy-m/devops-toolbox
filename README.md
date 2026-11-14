@@ -6,16 +6,11 @@ Make a fresh Linux server ready for DevOps work with one command. An interactive
 curl -fsSL https://raw.githubusercontent.com/uthrapathy-m/devops-toolbox/main/install-devops-tool.sh | bash
 ```
 
-```
-   ╔═══════════════════════════════════════════════════════════╗
-   ║   ___                ___                _____         _   ║
-   ║  |   \ _____ _____  / _ \ _ __ ___     |_   _|__  ___| |  ║
-   ║  | |) / -_) V / _ \| (_) | '_ (_-<       | |/ _ \/ _ \ |  ║
-   ║  |___/\___|\_/\___/ \___/| .__/__/       |_|\___/\___/_|  ║
-   ║                          |_|          toolbox installer   ║
-   ╚═══════════════════════════════════════════════════════════╝
-   Ubuntu 24.04 LTS · x86_64 · apt · sudo ✔ → /usr/local/bin
+<p align="center"><img src="assets/banner-ocean.png" alt="DevOps Toolbox login banner (Ocean theme)" width="820"></p>
 
+The installer menu looks like this:
+
+```
   Step 2/3 · CLI Utilities  (1/5 · profile: Core CLI)
 
   ❯ [✔] fzf                Fuzzy finder (Ctrl-R history, Ctrl-T files)  ● 0.75.0
@@ -27,31 +22,13 @@ curl -fsSL https://raw.githubusercontent.com/uthrapathy-m/devops-toolbox/main/in
 
 ## Login banner
 
-Every new SSH session opens with this banner. The DEVOPS logo has a purple-to-blue gradient, and the info lines show live system data:
-
-```
-  ██████╗  ███████╗ ██╗   ██╗  ██████╗  ██████╗  ███████╗
-  ██╔══██╗ ██╔════╝ ██║   ██║ ██╔═══██╗ ██╔══██╗ ██╔════╝
-  ██║  ██║ █████╗   ██║   ██║ ██║   ██║ ██████╔╝ ███████╗
-  ██║  ██║ ██╔══╝   ╚██╗ ██╔╝ ██║   ██║ ██╔═══╝  ╚════██║
-  ██████╔╝ ███████╗  ╚████╔╝  ╚██████╔╝ ██║      ███████║
-  ╚═════╝  ╚══════╝   ╚═══╝    ╚═════╝  ╚═╝      ╚══════╝
-                                  © 2026 root@prod-k8s-01
-  ============================================================================
-  System Information: Kernel: 6.8.0; Uptime: 3 days; 4 hours; 12 min; Shell: Bash 5.2
-  ============================================================================
-  Ubuntu 24.04.5 LTS * x86_64 * 4 CPU * Load: 0.40 0.28 0.23
-  Memory: 1.2Gi/7.7Gi; Disk(/): 21G/80G (27%); IP: 10.0.1.15
-  Docker: 3 running; K8s: prod-cluster
-  ============================================================================
-
-  Welcome to prod-k8s-01, root! Your DevOps toolbox is ready.
-  To get a list of toolbox commands, type 'toolbox-help'.
-```
+Every new SSH session opens with the banner shown above: the gradient DEVOPS logo plus live system data (kernel, uptime, OS, load, memory, disk, IP and, when installed, Docker and Kubernetes status).
 
 ### Themes
 
 There are 7 colour themes, inspired by [bashfolio](https://github.com/rushhiii/bashfolio). **Ocean** is the default.
+
+<p align="center"><img src="assets/themes.png" alt="All 7 banner themes" width="900"></p>
 
 | Theme | Logo gradient | Accent |
 |---|---|---|
