@@ -138,7 +138,7 @@ The **tmux top bar** item keeps your theme visible all the time. A themed status
  DEVOPS  prod-k8s-01 │  1:bash  2:logs            10.0.1.15 │ load 0.24 │ mem 31% │ ⎈ k3d-dev │ 14:32
 ```
 
-- **Contents:** hostname, windows, IP, load, memory, Kubernetes context and time, refreshed every 5 seconds. `toolbox-theme <name>` recolours it live, together with the banner, k9s and sofka.
+- **Contents:** hostname, windows and time. In windows where the pinned banner is hidden (or the screen is too small for it), the bar also shows IP, load, memory and the Kubernetes context, refreshed every 5 seconds; otherwise those stats live under the pinned banner so nothing is shown twice. `toolbox-theme <name>` recolours it live, together with the banner, k9s and sofka.
 - **Auto-attach:** every SSH login joins a tmux session called `main`, so the bar is always there. If your connection drops, your work keeps running; SSH back in and you're where you left off.
 - **Pinned banner:** every tmux window also gets the compact DEVOPS banner in a read-only pane at the top: the logo plus 2 live lines (kernel, uptime, load, memory, disk, IP and Kubernetes context), refreshed every 5 seconds. Because the logo is already pinned, the shell below only prints the welcome lines.
 

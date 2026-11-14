@@ -448,6 +448,8 @@ emit_status_script() {
   cat > "$1" <<'STATUS_EOF'
 #!/usr/bin/env bash
 # devops-toolbox: right side of the tmux top bar (IP · load · mem · k8s context). Called every few seconds.
+# Prints nothing when the window (arg 1) has the pinned banner, which already shows these stats.
+if [ -n "$1" ] && tmux list-panes -t "$1" -F '#{@devops_pin}' 2>/dev/null | grep -qx 1; then exit 0; fi
 T=white; A=yellow; RL=grey
 [ -f "$HOME/.devops-toolbox/tmux-colors" ] && . "$HOME/.devops-toolbox/tmux-colors"
 ip=$(hostname -I 2>/dev/null | awk '{print $1}')
@@ -457,6 +459,7 @@ kc=${KUBECONFIG%%:*}; [ -f "$kc" ] || kc="$HOME/.kube/config"
 ctx=$(sed -n 's/^current-context:[[:space:]]*//p' "$kc" 2>/dev/null | tr -d '"' | head -1)
 printf '#[fg=%s]%s #[fg=%s]│ #[fg=%s]load %s #[fg=%s]│ #[fg=%s]mem %s' "$T" "${ip:-?}" "$RL" "$T" "${load:-?}" "$RL" "$T" "${mem:-?}"
 [ -n "$ctx" ] && printf ' #[fg=%s]│ #[fg=%s]⎈ %s' "$RL" "$A" "$ctx"
+printf ' #[fg=%s]│ ' "$RL"
 exit 0
 STATUS_EOF
   chmod +x "$1"
@@ -828,7 +831,7 @@ set -g status-style "bg=default,fg=$T"
 set -g status-left-length 60
 set -g status-right-length 140
 set -g status-left "#[bg=$P,fg=#0b0f17,bold] DEVOPS #[bg=default,fg=$P,bold] #h #[fg=$RL,nobold]│ "
-set -g status-right "#(\$HOME/.devops-toolbox/bin/toolbox-status) #[fg=$RL]│ #[fg=$P]%H:%M "
+set -g status-right "#(\$HOME/.devops-toolbox/bin/toolbox-status #{window_id})#[fg=$P]%H:%M "
 setw -g window-status-format "#[fg=$RL] #I:#W "
 setw -g window-status-current-format "#[bg=$M,fg=#0b0f17,bold] #I:#W "
 setw -g window-status-separator ""
