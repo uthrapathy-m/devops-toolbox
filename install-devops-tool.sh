@@ -461,6 +461,143 @@ set -g pane-active-border-style "fg=colour39"
 EOF
 }
 
+# ──────────────────────────── login banner ──────────────────────────
+# Written to ~/.devops-toolbox/banner.sh and also sourced by this installer for its header.
+emit_banner_sh() {
+  cat > "$1" <<'BANNER_EOF'
+# devops-toolbox banner + toolbox-help  (generated — re-run the installer to update)
+tb__c() {  # tb__c R G B fallback-256  → foreground colour escape
+  if [ "${TB_TRUECOLOR:-0}" = 1 ]; then printf '\e[38;2;%s;%s;%sm' "$1" "$2" "$3"; else printf '\e[38;5;%sm' "$4"; fi
+}
+tb__init() {
+  case "${COLORTERM:-}" in truecolor|24bit) TB_TRUECOLOR=1 ;; *) TB_TRUECOLOR=0 ;; esac
+  TB_G=$(tb__c 139 233 160 114); TB_P=$(tb__c 189 147 249 141); TB_SEP=$(tb__c 98 190 125 72)
+  TB_D=$'\e[2m'; TB_B=$'\e[1m'; TB_R=$'\e[0m'
+  local w; w=$({ stty size </dev/tty; } 2>/dev/null | cut -d" " -f2); w=${w:-${COLUMNS:-80}}; [ "$w" -gt 78 ] && w=78; [ "$w" -lt 40 ] && w=40
+  TB_LINE=$(printf '%*s' $((w - 2)) '' | tr ' ' '=')
+}
+tb_logo() {  # big gradient DEVOPS logo (55 cols)
+  local rows=(
+    "██████╗  ███████╗ ██╗   ██╗  ██████╗  ██████╗  ███████╗"
+    "██╔══██╗ ██╔════╝ ██║   ██║ ██╔═══██╗ ██╔══██╗ ██╔════╝"
+    "██║  ██║ █████╗   ██║   ██║ ██║   ██║ ██████╔╝ ███████╗"
+    "██║  ██║ ██╔══╝   ╚██╗ ██╔╝ ██║   ██║ ██╔═══╝  ╚════██║"
+    "██████╔╝ ███████╗  ╚████╔╝  ╚██████╔╝ ██║      ███████║"
+    "╚═════╝  ╚══════╝   ╚═══╝    ╚═════╝  ╚═╝      ╚══════╝"
+  )
+  local cols=("167 120 235 135" "157 128 232 141" "146 137 228 140" "134 147 224 104" "122 157 220 110" "110 167 216 74")
+  local i
+  for i in 0 1 2 3 4 5; do
+    # shellcheck disable=SC2086
+    printf '  %s%s%s\n' "$(tb__c ${cols[$i]})" "${rows[$i]}" "$TB_R"
+  done
+}
+tb_tag() {  # right-aligned small tag under the logo, like "© 2026 user@host"
+  local text="$1" pad
+  pad=$(( 57 - ${#text} )); [ "$pad" -lt 2 ] && pad=2
+  printf '%*s%s%s%s\n' "$pad" '' "$TB_D" "$text" "$TB_R"
+}
+tb_rule() { printf '  %s%s%s\n' "$TB_SEP" "$TB_LINE" "$TB_R"; }
+tb_text() { printf '  %s%s%s\n' "$TB_G" "$*" "$TB_R"; }
+
+tb_banner() {
+  tb__init
+  local host user kernel up s d h m shell os arch cpus load mem disk ip extra=""
+  host=${HOSTNAME%%.*}; user=${USER:-$(id -un)}
+  kernel=$(uname -r | cut -d- -f1); arch=$(uname -m)
+  s=$(cut -d. -f1 /proc/uptime 2>/dev/null || echo 0)
+  d=$((s / 86400)); h=$((s % 86400 / 3600)); m=$((s % 3600 / 60))
+  up="$d day$([ "$d" = 1 ] || echo s); $h hour$([ "$h" = 1 ] || echo s); $m min"
+  shell="Bash ${BASH_VERSINFO[0]}.${BASH_VERSINFO[1]}"
+  os=$( . /etc/os-release 2>/dev/null; echo "${PRETTY_NAME:-Linux}")
+  cpus=$(nproc 2>/dev/null || echo "?"); load=$(cut -d' ' -f1-3 /proc/loadavg 2>/dev/null)
+  mem=$(awk '/^MemTotal:/ {t=$2} /^MemAvailable:/ {a=$2} END {if (t) printf "%.1fG/%.1fG", (t-a)/1048576, t/1048576}' /proc/meminfo 2>/dev/null)
+  disk=$(df -h / 2>/dev/null | awk 'NR==2 {print $3 "/" $2 " (" $5 ")"}')
+  ip=$(hostname -I 2>/dev/null | awk '{print $1}')
+  [ -n "$ip" ] || ip=$(ip -4 route get 1.1.1.1 2>/dev/null | awk '{for(i=1;i<NF;i++) if($i=="src"){print $(i+1); exit}}')
+  if command -v docker >/dev/null 2>&1 && [ -r /var/run/docker.sock ] && [ -w /var/run/docker.sock ]; then
+    extra+="Docker: $(timeout 2 docker ps -q 2>/dev/null | wc -l) running; "
+  fi
+  if command -v kubectl >/dev/null 2>&1; then
+    extra+="K8s: $(timeout 2 kubectl config current-context 2>/dev/null || echo none); "
+  fi
+
+  echo
+  tb_logo
+  tb_tag "© $(date +%Y) $user@$host"
+  tb_rule
+  tb_text "System Information: Kernel: $kernel; Uptime: $up; Shell: $shell"
+  tb_rule
+  tb_text "$os * $arch * $cpus CPU * Load: $load"
+  tb_text "Memory: ${mem:-?}; Disk(/): ${disk:-?}; IP: ${ip:-?}"
+  [ -n "$extra" ] && tb_text "${extra%; }"
+  tb_rule
+  echo
+  printf '  %sWelcome to %s%s%s%s, %s! Your DevOps toolbox is ready.%s\n' "$TB_G" "$TB_B" "$host" "$TB_R" "$TB_G" "$user" "$TB_R"
+  printf "  %sTo get a list of toolbox commands, type %s'toolbox-help'%s%s.%s\n\n" "$TB_G" "$TB_P$TB_B" "$TB_R" "$TB_G" "$TB_R"
+}
+
+_tb_s() { printf '\n  %s%s%s%s\n' "$TB_P" "$TB_B" "$1" "$TB_R"; }
+_tb_h() { printf '    %s%-26s%s %s%s%s\n' "$TB_G" "$1" "$TB_R" "$TB_D" "$2" "$TB_R"; }
+_tb_has() { command -v "$1" >/dev/null 2>&1 || alias "$1" >/dev/null 2>&1 || declare -F "$1" >/dev/null 2>&1; }
+toolbox-help() {
+  tb__init
+  echo; tb_rule; tb_text "DevOps Toolbox — commands available on this machine"; tb_rule
+  _tb_s "Navigation & files"
+  _tb_has z      && _tb_h "z <dir>" "jump to a frequently used directory (zi = interactive)"
+  _tb_has ll     && _tb_h "ll / la / lt" "long list / all / tree view"
+  _tb_has mkcd   && _tb_h "mkcd <dir>" "make a directory and cd into it"
+  _tb_has extract && _tb_h "extract <file>" "unpack any archive"
+  _tb_has bat    && _tb_h "cat / bcat" "syntax-highlighted file view"
+  _tb_s "Search"
+  _tb_has fzf    && _tb_h "Ctrl-R / Ctrl-T" "fuzzy history / fuzzy file picker (Alt-C: cd)"
+  _tb_has fe     && _tb_h "fe / fkill / fh" "fuzzy edit file / kill process / rerun history"
+  _tb_has rg     && _tb_h "rg <text>" "ripgrep: search file contents"
+  _tb_has fd     && _tb_h "fd <name>" "find files by name"
+  if _tb_has gs; then
+    _tb_s "Git"
+    _tb_h "gs / gd / gds" "status / diff / staged diff"
+    _tb_h "ga / gaa / gc \"m\"" "add / add all / commit"
+    _tb_h "gp / gpl / gf" "push / pull --rebase / fetch --prune"
+    _tb_h "gl / gla / gco" "graph log / all branches / checkout"
+    _tb_has lg && _tb_h "lg" "lazygit"
+  fi
+  if _tb_has k; then
+    _tb_s "Kubernetes"
+    _tb_h "k" "kubectl (with tab completion)"
+    _tb_h "kgp / kgpa / kgpw" "pods / all namespaces / wide"
+    _tb_h "kgs / kgd / kgn / kge" "services / deployments / nodes / events"
+    _tb_h "kl / kex / kpf" "logs -f / exec -it / port-forward"
+    _tb_h "kaf / kdel / krr" "apply -f / delete / rollout restart"
+    _tb_h "kns / kctx" "switch namespace / context"
+    _tb_has k9s && _tb_h "k9s" "Kubernetes TUI"
+    _tb_has stern && _tb_h "stern <pod>" "tail logs from many pods"
+  fi
+  if _tb_has dps; then
+    _tb_s "Docker"
+    _tb_h "dps / dpsa / di" "containers / all / images"
+    _tb_h "dex / dlog" "exec -it / logs -f"
+    _tb_h "dc / dcu / dcd / dcl" "compose / up -d / down / logs"
+    _tb_h "dprune" "remove everything unused"
+    _tb_has ld && _tb_h "ld" "lazydocker"
+  fi
+  _tb_s "Monitoring"
+  _tb_has btop  && _tb_h "btop (top)" "resource monitor"
+  _tb_has htop  && _tb_h "htop" "process viewer"
+  _tb_has ncdu  && _tb_h "ncdu /" "disk usage explorer"
+  _tb_has ports && _tb_h "ports / myip" "listening ports / public IP"
+  _tb_has fastfetch && _tb_h "fastfetch" "detailed system info"
+  _tb_s "Toolbox"
+  _tb_h "toolbox-banner" "show the welcome banner again"
+  _tb_h "toolbox-help" "this screen"
+  _tb_h "~/.devops-toolbox/custom.sh" "your own aliases (never overwritten)"
+  _tb_h "DEVOPS_TOOLBOX_BANNER" "1 = this banner, fastfetch, 0 = off"
+  echo
+}
+alias toolbox-banner='tb_banner'
+BANNER_EOF
+}
+
 # ──────────────────────────── shell config ──────────────────────────
 write_fastfetch_config() {
   local cfg="$HOME/.config/fastfetch"; mkdir -p "$cfg"
@@ -632,10 +769,15 @@ command -v starship >/dev/null && eval "$(starship init bash)"
 . "$HOME/.devops-toolbox/aliases.sh"
 [ -f "$HOME/.devops-toolbox/custom.sh" ] && . "$HOME/.devops-toolbox/custom.sh"
 
-# login banner (once per session, not inside tmux) — disable: export DEVOPS_TOOLBOX_BANNER=0
-if [ "$DEVOPS_TOOLBOX_BANNER" = 1 ] && [ -z "$TMUX" ] && [ -z "$DEVOPS_TOOLBOX_BANNER_SHOWN" ] && command -v fastfetch >/dev/null; then
+# login banner (once per session, not inside tmux)
+#   DEVOPS_TOOLBOX_BANNER=1 → toolbox banner · fastfetch → fastfetch · 0 → off   (set it in custom.sh)
+[ -f "$HOME/.devops-toolbox/banner.sh" ] && . "$HOME/.devops-toolbox/banner.sh"
+if [ -z "$TMUX" ] && [ -z "$DEVOPS_TOOLBOX_BANNER_SHOWN" ]; then
   export DEVOPS_TOOLBOX_BANNER_SHOWN=1
-  fastfetch 2>/dev/null
+  case "$DEVOPS_TOOLBOX_BANNER" in
+    1|toolbox) declare -F tb_banner >/dev/null && tb_banner ;;
+    fastfetch) command -v fastfetch >/dev/null && fastfetch 2>/dev/null ;;
+  esac
 fi
 EOF
 
@@ -662,7 +804,9 @@ EOF
   touch "$TOOLBOX_HOME/custom.sh"
   [ -f "$HOME/.bashrc" ] || touch "$HOME/.bashrc"
   grep -qF '# devops-toolbox' "$HOME/.bashrc" || printf '\n%s\n' "$BASHRC_LINE" >> "$HOME/.bashrc"
+  emit_banner_sh "$TOOLBOX_HOME/banner.sh"
   command -v fastfetch >/dev/null 2>&1 && write_fastfetch_config
+  return 0
 }
 
 # ──────────────────────────── uninstall ─────────────────────────────
@@ -707,20 +851,19 @@ read_key() {  # sets KEY to: up down left right space enter a q b or the char
 
 banner() {
   printf '\e[H\e[2J'
-  printf "${CYN}${B}"
-  cat <<'EOF'
-   ╔═══════════════════════════════════════════════════════════╗
-   ║   ___                ___                _____         _   ║
-   ║  |   \ _____ _____  / _ \ _ __ ___     |_   _|__  ___| |  ║
-   ║  | |) / -_) V / _ \| (_) | '_ (_-<       | |/ _ \/ _ \ |  ║
-   ║  |___/\___|\_/\___/ \___/| .__/__/       |_|\___/\___/_|  ║
-   ║                          |_|          toolbox installer   ║
-   ╚═══════════════════════════════════════════════════════════╝
-EOF
-  printf "${R}"
-  local priv="${GRN}sudo ✔${R} → $BIN_DIR"
-  [ "$HAS_ROOT" = 1 ] || priv="${YLW}no sudo${R} → $BIN_DIR"
-  printf "   ${DIM}%s · %s · %s${R} · %b\n\n" "$OS_PRETTY" "$ARCH_X" "$PKG" "$priv"
+  tb__init
+  local priv="sudo ✔ → $BIN_DIR"
+  [ "$HAS_ROOT" = 1 ] || priv="no sudo → $BIN_DIR"
+  local rows; rows=$({ stty size </dev/tty; } 2>/dev/null | cut -d" " -f1)
+  if [ "${rows:-24}" -ge 34 ]; then
+    echo; tb_logo; tb_tag "toolbox installer v$TOOLBOX_VERSION"
+  else
+    printf '\n  %s%sDEVOPS TOOLBOX%s %sinstaller v%s%s\n' "$TB_P" "$TB_B" "$TB_R" "$TB_D" "$TOOLBOX_VERSION" "$TB_R"
+  fi
+  tb_rule
+  tb_text "System: $OS_PRETTY * $ARCH_X * $PKG * $priv"
+  tb_rule
+  echo
 }
 
 declare -A SEL VER
@@ -880,6 +1023,9 @@ main() {
   detect_os
   [ "$OPT_UNINSTALL" = 1 ] && do_uninstall
   detect_privileges
+  emit_banner_sh "$TMP/banner.sh"
+  # shellcheck disable=SC1091
+  . "$TMP/banner.sh"
 
   local id
   for id in "${IDS[@]}"; do
@@ -924,12 +1070,13 @@ main() {
   fi
   printf "\n"
 
-  if command -v fastfetch >/dev/null 2>&1; then
-    fastfetch 2>/dev/null
+  # show the new login banner with the freshly written aliases loaded
+  if [ "$OPT_NO_BANNER" = 0 ]; then
+    ( . "$TOOLBOX_HOME/aliases.sh" 2>/dev/null; . "$TOOLBOX_HOME/banner.sh"; tb_banner )
   fi
 
   printf "\n  ${B}${GRN}All set!${R} Activate now with:  ${B}${CYN}exec bash${R}\n"
-  printf "  ${DIM}Your own aliases → ~/.devops-toolbox/custom.sh · Disable banner → export DEVOPS_TOOLBOX_BANNER=0${R}\n"
+  printf "  ${DIM}Your own aliases → ~/.devops-toolbox/custom.sh · Banner: DEVOPS_TOOLBOX_BANNER=1|fastfetch|0 · Commands → toolbox-help${R}\n"
   printf "  ${DIM}Re-run any time to add tools · --upgrade to update · --uninstall to remove${R}\n\n"
   [ "$PKG" ] && [[ " ${RESULT_OK[*]} " == *" docker "* ]] && [ "$(id -u)" -ne 0 ] && warn "Log out and back in to use docker without sudo."
   return 0

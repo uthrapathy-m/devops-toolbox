@@ -1,6 +1,6 @@
 # DevOps Toolbox
 
-Make a fresh Linux server ready for DevOps work with one command. An interactive, colourful menu lets you choose what goes on the box: modern CLI tools, Kubernetes and cloud CLIs, alias packs and dotfiles. Then it shows a custom **fastfetch** login banner.
+Make a fresh Linux server ready for DevOps work with one command. An interactive, colourful menu lets you choose what goes on the box: modern CLI tools, Kubernetes and cloud CLIs, alias packs and dotfiles. Then it shows a custom login banner.
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/uthrapathy-m/devops-toolbox/main/install-devops-tool.sh | bash
@@ -24,6 +24,34 @@ curl -fsSL https://raw.githubusercontent.com/uthrapathy-m/devops-toolbox/main/in
     ...
   ↑/↓ move · space toggle · a all/none · enter next · b back · q quit
 ```
+
+## Login banner
+
+Every new SSH session opens with this banner. The DEVOPS logo has a purple-to-blue gradient, and the info lines show live system data:
+
+```
+  ██████╗  ███████╗ ██╗   ██╗  ██████╗  ██████╗  ███████╗
+  ██╔══██╗ ██╔════╝ ██║   ██║ ██╔═══██╗ ██╔══██╗ ██╔════╝
+  ██║  ██║ █████╗   ██║   ██║ ██║   ██║ ██████╔╝ ███████╗
+  ██║  ██║ ██╔══╝   ╚██╗ ██╔╝ ██║   ██║ ██╔═══╝  ╚════██║
+  ██████╔╝ ███████╗  ╚████╔╝  ╚██████╔╝ ██║      ███████║
+  ╚═════╝  ╚══════╝   ╚═══╝    ╚═════╝  ╚═╝      ╚══════╝
+                                  © 2026 root@prod-k8s-01
+  ============================================================================
+  System Information: Kernel: 6.8.0; Uptime: 3 days; 4 hours; 12 min; Shell: Bash 5.2
+  ============================================================================
+  Ubuntu 24.04.5 LTS * x86_64 * 4 CPU * Load: 0.40 0.28 0.23
+  Memory: 1.2Gi/7.7Gi; Disk(/): 21G/80G (27%); IP: 10.0.1.15
+  Docker: 3 running; K8s: prod-cluster
+  ============================================================================
+
+  Welcome to prod-k8s-01, root! Your DevOps toolbox is ready.
+  To get a list of toolbox commands, type 'toolbox-help'.
+```
+
+- `toolbox-help` lists the aliases and tools that are actually installed on this machine.
+- `toolbox-banner` shows the banner again.
+- `DEVOPS_TOOLBOX_BANNER` controls what appears at login: `1` for this banner (default), `fastfetch` for the detailed fastfetch view, or `0` for nothing. Set it in `~/.devops-toolbox/custom.sh`.
 
 ## How it works
 
@@ -83,7 +111,8 @@ Most tools come from their **latest GitHub release**. If you hit the GitHub API 
 | Path | Purpose |
 |---|---|
 | `~/.bashrc` | One line that sources `~/.devops-toolbox/init.sh` |
-| `~/.devops-toolbox/init.sh` | PATH, completions, zoxide, fzf and starship hooks, the login banner |
+| `~/.devops-toolbox/init.sh` | PATH, completions, zoxide, fzf and starship hooks |
+| `~/.devops-toolbox/banner.sh` | The login banner and `toolbox-help` |
 | `~/.devops-toolbox/aliases.sh` | The alias packs you picked (regenerated on every run) |
 | `~/.devops-toolbox/custom.sh` | **Your own** aliases; never overwritten |
 | `~/.devops-toolbox/logs/` | One install log per tool |
@@ -99,7 +128,7 @@ Re-running the script is safe: it never adds duplicate lines and keeps the alias
 - `dps`, `dcu`, `dcl`, `dex` for Docker; `gs`, `gl`, `gco`, `lg` for Git.
 - `fe` opens a file in your editor, `fkill` kills a process and `fh` re-runs a history entry, all through fzf.
 - tmux: prefix `Ctrl-a`, split panes with `|` and `-`, mouse enabled.
-- To turn off the login banner: `export DEVOPS_TOOLBOX_BANNER=0` in `~/.devops-toolbox/custom.sh`.
+- Type `toolbox-help` at any time to see all of these.
 
 ## Uninstall
 

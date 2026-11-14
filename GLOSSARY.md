@@ -41,7 +41,7 @@ The per-user directory (`~/.devops-toolbox/`) that holds everything the installe
 _Avoid_: Config dir, install dir
 
 **Login Banner**:
-The custom fastfetch system summary shown when an interactive shell starts and at the end of an install run.
+The gradient DEVOPS logo with a live system summary, shown when an interactive shell starts and at the end of an install run.
 _Avoid_: MOTD, splash, welcome screen
 
 **User-local Install**:
