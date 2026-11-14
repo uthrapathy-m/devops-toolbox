@@ -242,7 +242,7 @@ irm https://raw.githubusercontent.com/uthrapathy-m/devops-toolbox/main/install-t
 - **Banner + pinned pane:** every new PowerShell tab in Windows Terminal gets a 10-row pane at the top with the compact banner (date/time and live stats, redrawn every 5 s). It closes with its tab and hides while `ssh` runs. `toolbox-pin` toggles it; `toolbox-pin off` / `on` is remembered.
 - **Themes:** the same 7 themes, plus matching Windows Terminal colour schemes ("DevOps Toolbox Ocean", ...). `toolbox-theme amber` changes both. `settings.json` is backed up first.
 - **Aliases:** the Linux packs, except that git commit/push/log are `gcmsg`, `gpush`, `glog` (`gc`, `gp`, `gl` are built-in PowerShell aliases), and `ls`/`cat` are left alone (`ll`, `la`, `lt`, `bcat` instead). Run `toolbox-help` for the list.
-- **Files:** `~\.devops-toolbox	oolbox.ps1` (regenerated), `custom.ps1` (yours, never overwritten), one line in your PowerShell profile.
+- **Files:** `~\.devops-toolbox\toolbox.ps1` (regenerated), `custom.ps1` (yours, never overwritten), one line in your PowerShell profile.
 
 ```powershell
 .\install-toolbox.ps1 -Profile k8s -Theme ice -Yes   # no menus
