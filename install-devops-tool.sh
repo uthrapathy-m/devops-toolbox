@@ -29,7 +29,7 @@ err()  { printf "  ${RED}✖${R} %s\n" "$*" >&2; }
 die()  { err "$*"; exit 1; }
 
 # ───────────────────────────── options ──────────────────────────────
-OPT_PROFILE=""; OPT_TOOLS=""; OPT_YES=0; OPT_UPGRADE=0; OPT_UNINSTALL=0; OPT_LIST=0; OPT_NO_BANNER=0
+OPT_PROFILE=""; OPT_TOOLS=""; OPT_YES=0; OPT_UPGRADE=0; OPT_UNINSTALL=0; OPT_LIST=0; OPT_NO_BANNER=0; OPT_THEME=""
 
 usage() {
   cat <<EOF
@@ -44,7 +44,8 @@ ${B}Options${R}
   -t, --tools a,b,c    Preselect exact items (see --list); combines with --profile
   -y, --yes            Non-interactive: install the preselection without menus
   -u, --upgrade        Reinstall items that are already installed (latest versions)
-      --no-banner      Do not enable the fastfetch login banner
+      --no-banner      Do not show the login banner
+      --theme NAME     Banner colours: ocean (default) | amber | ice | snow | matrix | sand | lavender
       --list           List every item id and exit
       --uninstall      Remove toolbox shell config and binaries it installed
   -h, --help           Show this help
@@ -65,6 +66,8 @@ while [ $# -gt 0 ]; do
     -y|--yes)     OPT_YES=1 ;;
     -u|--upgrade) OPT_UPGRADE=1 ;;
     --no-banner)  OPT_NO_BANNER=1 ;;
+    --theme)      OPT_THEME="$2"; shift ;;
+    --theme=*)    OPT_THEME="${1#*=}" ;;
     --list)       OPT_LIST=1 ;;
     --uninstall)  OPT_UNINSTALL=1 ;;
     -h|--help)    usage; exit 0 ;;
@@ -469,9 +472,25 @@ emit_banner_sh() {
 tb__c() {  # tb__c R G B fallback-256  → foreground colour escape
   if [ "${TB_TRUECOLOR:-0}" = 1 ]; then printf '\e[38;2;%s;%s;%sm' "$1" "$2" "$3"; else printf '\e[38;5;%sm' "$4"; fi
 }
+TB_THEMES="ocean amber ice snow matrix sand lavender"
+# Theme = 6 logo gradient stops (top→bottom), rule, text, welcome, accent.  Each: "R G B fallback256"
+tb__theme() {
+  case "$1" in
+    amber)    echo "255 215 90 221|245 195 70 220|230 175 55 178|210 155 45 172|190 135 40 136|165 115 35 130|140 110 40 94|235 190 90 179|255 220 120 222|255 255 255 231" ;;
+    ice)      echo "205 235 255 195|188 222 252 153|172 208 246 153|156 193 236 110|140 178 226 110|124 162 214 67|110 130 160 67|170 185 210 146|255 135 190 211|255 105 180 205" ;;
+    snow)     echo "255 255 255 231|236 236 242 255|216 216 228 252|196 196 214 250|176 176 198 248|156 156 182 246|120 120 140 243|200 200 212 252|255 180 80 215|255 210 90 221" ;;
+    matrix)   echo "130 255 130 120|95 240 95 83|65 225 65 77|45 200 45 40|32 175 32 34|22 150 22 28|30 140 30 28|80 250 80 83|180 255 120 155|255 255 255 231" ;;
+    sand)     echo "245 225 200 224|230 210 185 223|215 195 170 181|200 180 155 180|185 165 140 138|170 150 125 137|140 115 90 95|215 195 165 180|255 130 80 209|255 160 90 215" ;;
+    lavender) echo "167 120 235 135|157 128 232 141|146 137 228 140|134 147 224 104|122 157 220 110|110 167 216 74|98 190 125 72|139 233 160 114|139 233 160 114|189 147 249 141" ;;
+    *)        echo "125 207 255 117|110 190 250 117|95 170 240 75|80 150 230 68|65 130 215 68|50 110 200 25|70 110 160 61|160 200 240 153|160 200 240 153|255 158 100 215" ;;  # ocean
+  esac
+}
 tb__init() {
   case "${COLORTERM:-}" in truecolor|24bit) TB_TRUECOLOR=1 ;; *) TB_TRUECOLOR=0 ;; esac
-  TB_G=$(tb__c 139 233 160 114); TB_P=$(tb__c 189 147 249 141); TB_SEP=$(tb__c 98 190 125 72)
+  local spec i; spec=$(tb__theme "${DEVOPS_TOOLBOX_THEME:-ocean}")
+  IFS='|' read -r -a TB_STOPS <<<"$spec"
+  # shellcheck disable=SC2086
+  { TB_SEP=$(tb__c ${TB_STOPS[6]}); TB_G=$(tb__c ${TB_STOPS[7]}); TB_W=$(tb__c ${TB_STOPS[8]}); TB_P=$(tb__c ${TB_STOPS[9]}); }
   TB_D=$'\e[2m'; TB_B=$'\e[1m'; TB_R=$'\e[0m'
   local w; w=$({ stty size </dev/tty; } 2>/dev/null | cut -d" " -f2); w=${w:-${COLUMNS:-80}}; [ "$w" -gt 78 ] && w=78; [ "$w" -lt 40 ] && w=40
   TB_LINE=$(printf '%*s' $((w - 2)) '' | tr ' ' '=')
@@ -485,12 +504,29 @@ tb_logo() {  # big gradient DEVOPS logo (55 cols)
     "██████╔╝ ███████╗  ╚████╔╝  ╚██████╔╝ ██║      ███████║"
     "╚═════╝  ╚══════╝   ╚═══╝    ╚═════╝  ╚═╝      ╚══════╝"
   )
-  local cols=("167 120 235 135" "157 128 232 141" "146 137 228 140" "134 147 224 104" "122 157 220 110" "110 167 216 74")
   local i
   for i in 0 1 2 3 4 5; do
     # shellcheck disable=SC2086
-    printf '  %s%s%s\n' "$(tb__c ${cols[$i]})" "${rows[$i]}" "$TB_R"
+    printf '  %s%s%s\n' "$(tb__c ${TB_STOPS[$i]})" "${rows[$i]}" "$TB_R"
   done
+}
+toolbox-theme() {  # preview / switch theme:  toolbox-theme [name]
+  local t i f="$HOME/.devops-toolbox/custom.sh"
+  if [ -z "$1" ]; then
+    for t in $TB_THEMES; do
+      DEVOPS_TOOLBOX_THEME=$t tb__init
+      printf '  %s%-9s%s ' "$TB_B" "$t" "$TB_R"
+      for i in 0 1 2 3 4 5; do printf '%s██' "$(tb__c ${TB_STOPS[$i]})"; done
+      printf ' %stext%s %swelcome%s %s%shelp%s\n' "$TB_G" "$TB_R" "$TB_W" "$TB_R" "$TB_P" "$TB_B" "$TB_R"
+    done
+    printf '\n  current: %s · switch: toolbox-theme <name>\n' "${DEVOPS_TOOLBOX_THEME:-ocean}"
+    return
+  fi
+  case " $TB_THEMES " in *" $1 "*) ;; *) echo "unknown theme '$1' (choose: $TB_THEMES)"; return 1 ;; esac
+  touch "$f"; sed -i '/^export DEVOPS_TOOLBOX_THEME=/d' "$f"
+  echo "export DEVOPS_TOOLBOX_THEME=$1" >> "$f"
+  export DEVOPS_TOOLBOX_THEME=$1
+  tb_banner
 }
 tb_tag() {  # right-aligned small tag under the logo, like "© 2026 user@host"
   local text="$1" pad
@@ -533,8 +569,8 @@ tb_banner() {
   [ -n "$extra" ] && tb_text "${extra%; }"
   tb_rule
   echo
-  printf '  %sWelcome to %s%s%s%s, %s! Your DevOps toolbox is ready.%s\n' "$TB_G" "$TB_B" "$host" "$TB_R" "$TB_G" "$user" "$TB_R"
-  printf "  %sTo get a list of toolbox commands, type %s'toolbox-help'%s%s.%s\n\n" "$TB_G" "$TB_P$TB_B" "$TB_R" "$TB_G" "$TB_R"
+  printf '  %sWelcome to %s%s%s%s, %s! Your DevOps toolbox is ready.%s\n' "$TB_W" "$TB_B" "$host" "$TB_R" "$TB_W" "$user" "$TB_R"
+  printf "  %sTo get a list of toolbox commands, type %s'toolbox-help'%s%s.%s\n\n" "$TB_W" "$TB_P$TB_B" "$TB_R" "$TB_W" "$TB_R"
 }
 
 _tb_s() { printf '\n  %s%s%s%s\n' "$TB_P" "$TB_B" "$1" "$TB_R"; }
@@ -589,6 +625,7 @@ toolbox-help() {
   _tb_has fastfetch && _tb_h "fastfetch" "detailed system info"
   _tb_s "Toolbox"
   _tb_h "toolbox-banner" "show the welcome banner again"
+  _tb_h "toolbox-theme [name]" "preview / switch banner colours"
   _tb_h "toolbox-help" "this screen"
   _tb_h "~/.devops-toolbox/custom.sh" "your own aliases (never overwritten)"
   _tb_h "DEVOPS_TOOLBOX_BANNER" "1 = this banner, fastfetch, 0 = off"
@@ -747,6 +784,7 @@ EOF
 case ":\$PATH:" in *":\$HOME/.local/bin:"*) ;; *) export PATH="\$HOME/.local/bin:\$PATH" ;; esac
 [[ \$- == *i* ]] || return 0   # everything below is for interactive shells only
 : "\${DEVOPS_TOOLBOX_BANNER:=$banner}"
+: "\${DEVOPS_TOOLBOX_THEME:=${DEVOPS_TOOLBOX_THEME:-ocean}}"   # change with: toolbox-theme <name>
 EOF
   cat >> "$TOOLBOX_HOME/init.sh" <<'EOF'
 export EDITOR="${EDITOR:-vim}"
@@ -1023,6 +1061,8 @@ main() {
   detect_os
   [ "$OPT_UNINSTALL" = 1 ] && do_uninstall
   detect_privileges
+  export DEVOPS_TOOLBOX_THEME="${OPT_THEME:-${DEVOPS_TOOLBOX_THEME:-ocean}}"
+  case " ocean amber ice snow matrix sand lavender " in *" $DEVOPS_TOOLBOX_THEME "*) ;; *) die "Unknown theme: $DEVOPS_TOOLBOX_THEME" ;; esac
   emit_banner_sh "$TMP/banner.sh"
   # shellcheck disable=SC1091
   . "$TMP/banner.sh"

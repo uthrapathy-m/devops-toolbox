@@ -49,6 +49,28 @@ Every new SSH session opens with this banner. The DEVOPS logo has a purple-to-bl
   To get a list of toolbox commands, type 'toolbox-help'.
 ```
 
+### Themes
+
+There are 7 colour themes, inspired by [bashfolio](https://github.com/rushhiii/bashfolio). **Ocean** is the default.
+
+| Theme | Logo gradient | Accent |
+|---|---|---|
+| `ocean` | cyan → deep blue | orange |
+| `amber` | gold → bronze | white |
+| `ice` | ice-blue → steel | pink |
+| `snow` | white → grey | orange / yellow |
+| `matrix` | neon green → dark green | white |
+| `sand` | beige → tan | orange-red |
+| `lavender` | purple → blue | green text, purple accent |
+
+```bash
+toolbox-theme              # preview colour swatches for every theme
+toolbox-theme matrix       # switch (saved to ~/.devops-toolbox/custom.sh)
+bash install-devops-tool.sh --theme amber   # choose at install time
+```
+
+Tip: give each environment its own colour (for example, `matrix` on prod and `ocean` on dev) so you can tell at a glance which server you're on.
+
 - `toolbox-help` lists the aliases and tools that are actually installed on this machine.
 - `toolbox-banner` shows the banner again.
 - `DEVOPS_TOOLBOX_BANNER` controls what appears at login: `1` for this banner (default), `fastfetch` for the detailed fastfetch view, or `0` for nothing. Set it in `~/.devops-toolbox/custom.sh`.
@@ -92,7 +114,8 @@ curl -fsSL .../install-devops-tool.sh | bash -s -- -p everything -y --upgrade
 | `-t, --tools` | Comma-separated item ids (adds to the profile) |
 | `-y, --yes` | Skip all menus |
 | `-u, --upgrade` | Reinstall tools that are already present |
-| `--no-banner` | Don't show fastfetch on login |
+| `--no-banner` | Don't show the login banner |
+| `--theme` | Banner colours: `ocean`, `amber`, `ice`, `snow`, `matrix`, `sand`, `lavender` |
 | `--list` | List item ids and profiles |
 | `--uninstall` | Remove the toolbox shell config and the binaries it installed |
 
