@@ -142,6 +142,42 @@ Pick **k9s / sofka setup** (it's in the K8s Ops profile) to get both Kubernetes 
 
 sofka can also convert your k9s setup with `sofka import k9s`.
 
+## k3s and k3d clusters
+
+Two ways to get a Kubernetes cluster, both managed with **`toolbox-k3s`**:
+
+| | **k3d** (in K8s Ops) | **k3s server** (opt-in) |
+|---|---|---|
+| What | k3s running inside Docker containers | A real k3s install on the machine (systemd) |
+| Best for | Quick test clusters, multi-node on one box | A cluster that survives reboots, with real workers joining |
+| Needs | Docker | sudo/root |
+
+Ticking **k3s server** in the menu installs the cluster straight away. The installer asks once whether to disable Traefik; use `--no-traefik` when running non-interactively. After that, use the helper:
+
+```bash
+toolbox-k3s                                    # interactive menu
+toolbox-k3s create k3d dev --agents 2          # 1 server + 2 workers in Docker
+toolbox-k3s create k3s --no-traefik            # real k3s server on this machine
+toolbox-k3s status                             # what's running, contexts, nodes
+toolbox-k3s delete k3d dev                     # remove a k3d cluster
+toolbox-k3s delete k3s                         # uninstall k3s from this machine
+```
+
+**kubeconfig is set up automatically.** Each cluster is merged into `~/.kube/config` as its own context (`k3s-<hostname>` or `k3d-<name>`), and a backup is kept. `k`, `k9s` and `sofka` work right away without sudo.
+
+### Adding worker machines (k3s)
+
+1. On the **server**, run `toolbox-k3s token`. It prints the join command, including the server's private IP and token.
+2. On each **worker** (with the toolbox installed), run the printed command:
+   ```bash
+   toolbox-k3s join https://<server-private-ip>:6443 <token>
+   ```
+   Without the toolbox, use `curl -sfL https://get.k3s.io | K3S_URL=... K3S_TOKEN=... sh -`. `toolbox-k3s token` prints that version too.
+3. **On AWS**, the security group must allow **TCP 6443** (API server), **UDP 8472** (flannel) and **TCP 10250** (kubelet) between the nodes. Allow them from the same security group or the VPC CIDR.
+4. Check with `kubectl get nodes` on the server.
+
+The join token works like a cluster password. It isn't written to the install logs; run `toolbox-k3s token` whenever you need it.
+
 ## Fonts (install on your own computer)
 
 Your **SSH client** renders the text, so fonts belong on the computer you SSH *from*, not on the server. The banner works with any monospace font. A Nerd Font makes the block letters crisper and adds the icons used by eza, starship and lazygit.
@@ -180,7 +216,7 @@ Anything already installed shows `● version` and is skipped. Pass `--upgrade` 
 |---|---|
 | CLI Utilities | fzf, zoxide (`z`), bat, eza, ripgrep, fd, jq, yq, tldr, ncdu, tmux, git-delta, lazygit, starship |
 | Monitoring | btop, htop, fastfetch (with a custom login banner) |
-| Containers & Kubernetes | docker + compose, kubectl, helm, k9s, [sofka](https://github.com/nklmilojevic/sofka), kubectx/kubens, stern, lazydocker, dive |
+| Containers & Kubernetes | docker + compose, kubectl, helm, k9s, [sofka](https://github.com/nklmilojevic/sofka), k3d, k3s server, kubectx/kubens, stern, lazydocker, dive |
 | Cloud & IaC | terraform, opentofu, ansible, AWS CLI v2, Azure CLI, gcloud |
 | Aliases & Dotfiles | General, Git, Kubernetes and Docker alias packs, tmux.conf, fzf defaults, k9s / sofka setup |
 
@@ -207,6 +243,7 @@ curl -fsSL .../install-devops-tool.sh | bash -s -- -p everything -y --upgrade
 | `-u, --upgrade` | Reinstall tools that are already present |
 | `--no-banner` | Don't show the login banner |
 | `--theme` | Banner colours: `ocean`, `amber`, `ice`, `snow`, `matrix`, `sand`, `lavender` |
+| `--no-traefik` | With the `k3s` item: install k3s without the Traefik ingress |
 | `--list` | List item ids and profiles |
 | `--uninstall` | Remove the toolbox shell config and the binaries it installed |
 
