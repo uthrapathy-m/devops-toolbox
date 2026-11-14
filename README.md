@@ -20,6 +20,75 @@ The installer menu looks like this:
   ↑/↓ move · space toggle · a all/none · enter next · b back · q quit
 ```
 
+## Getting started
+
+There are two steps: fonts once on the computer you type on, then the toolbox on each server.
+
+### Step 1: Fonts on your own computer (once)
+
+Run this on the machine your terminal app runs on, **not** on the server.
+
+- **Windows** (PowerShell):
+  ```powershell
+  irm https://raw.githubusercontent.com/uthrapathy-m/devops-toolbox/main/install-fonts.ps1 | iex
+  ```
+- **Linux or macOS laptop/desktop:**
+  ```bash
+  curl -fsSL https://raw.githubusercontent.com/uthrapathy-m/devops-toolbox/main/install-fonts.sh | bash
+  ```
+
+Then pick **JetBrainsMono Nerd Font Mono** in your terminal's font settings and restart the terminal. See [Fonts](#fonts-install-on-your-own-computer) for details.
+
+### Step 2: The toolbox on each server
+
+```bash
+# 1. Connect to the server
+ssh user@your-server
+
+# 2. Run the installer and follow the menus
+curl -fsSL https://raw.githubusercontent.com/uthrapathy-m/devops-toolbox/main/install-devops-tool.sh | bash
+
+# 3. Load the new setup in your current session
+exec bash
+```
+
+In the installer:
+
+1. If you're not root, it asks whether to use sudo. Say **Y** if you have sudo access.
+2. **Choose a profile** with ↑/↓ and press Enter.
+3. **Go through the 5 category checklists.** Space ticks or unticks a tool, `a` selects all, Enter goes to the next category, `b` goes back.
+4. **Review** the list and press **Y** to install.
+5. You'll see the install progress, a summary and then the banner.
+
+### Step 3: Use it
+
+```bash
+toolbox-help           # see every alias and tool installed on this server
+toolbox-theme          # preview the 7 colour themes
+toolbox-theme matrix   # switch theme (saved)
+```
+
+Each new SSH login shows the banner automatically.
+
+### Optional: Skip the menus
+
+Useful when you already know what you want, or in automation like cloud-init:
+
+```bash
+# K8s Ops profile, no questions, matrix theme
+curl -fsSL https://raw.githubusercontent.com/uthrapathy-m/devops-toolbox/main/install-devops-tool.sh | bash -s -- -p k8s -y --theme matrix
+
+# Just specific tools
+curl -fsSL https://raw.githubusercontent.com/uthrapathy-m/devops-toolbox/main/install-devops-tool.sh | bash -s -- -t fzf,btop,zoxide,alias-k8s -y
+```
+
+### Later
+
+- **Add more tools:** run the same `curl ... | bash` again. Anything already installed is skipped.
+- **Update everything:** add `-s -- --upgrade` to the end of that command.
+- **Remove it:** add `-s -- --uninstall` to the end instead.
+- **Something failed?** Each tool's log is at `~/.devops-toolbox/logs/<tool>.log`.
+
 ## Login banner
 
 Every new SSH session opens with the banner shown above: the gradient DEVOPS logo plus live system data (kernel, uptime, OS, load, memory, disk, IP and, when installed, Docker and Kubernetes status).
