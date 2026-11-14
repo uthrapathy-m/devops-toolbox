@@ -6,8 +6,25 @@
 #   bash install-fonts.sh --dry-run      # download + list only
 set -eo pipefail
 
-DRY=0; [ "${1:-}" = "--dry-run" ] && DRY=1
+DRY=0; FORCE=0
+for a in "$@"; do case "$a" in --dry-run) DRY=1 ;; --force) FORCE=1 ;; esac; done
 if [ -t 1 ]; then C=$'\e[36m'; G=$'\e[32m'; Y=$'\e[33m'; D=$'\e[2m'; R=$'\e[0m'; else C=; G=; Y=; D=; R=; fi
+
+# Fonts are rendered by the SSH *client*. On a remote server with no desktop, installing them does nothing.
+if [ "$(uname -s)" = Linux ] && [ -n "${SSH_CONNECTION:-}" ] && [ -z "${DISPLAY:-}${WAYLAND_DISPLAY:-}" ] && [ "$FORCE" = 0 ]; then
+  cat >&2 <<EOF
+
+  ${Y}⚠ You're on a remote server over SSH. Fonts installed here won't change how your terminal looks.${R}
+    Your terminal draws text with fonts from the computer you SSH *from*. Run this there instead:
+
+    ${C}Windows (PowerShell):${R}  irm https://raw.githubusercontent.com/uthrapathy-m/devops-toolbox/main/install-fonts.ps1 | iex
+    ${C}macOS / Linux desktop:${R} curl -fsSL https://raw.githubusercontent.com/uthrapathy-m/devops-toolbox/main/install-fonts.sh | bash
+
+    ${D}(Use --force to install here anyway, e.g. for a desktop session on this machine.)${R}
+
+EOF
+  exit 1
+fi
 
 case "$(uname -s)" in
   Darwin) FONT_DIR="$HOME/Library/Fonts" ;;
