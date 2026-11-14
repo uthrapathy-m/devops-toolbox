@@ -82,7 +82,16 @@ curl -fsSL https://raw.githubusercontent.com/uthrapathy-m/devops-toolbox/main/in
 curl -fsSL https://raw.githubusercontent.com/uthrapathy-m/devops-toolbox/main/install-devops-tool.sh | bash -s -- -t fzf,btop,zoxide,alias-k8s -y
 ```
 
-### Later
+### Later: updating a server you already set up
+
+Re-run the installer. Tools you already have are skipped, and your alias packs and dotfiles stay ticked. Tick any new items you want, or name them directly:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/uthrapathy-m/devops-toolbox/main/install-devops-tool.sh | bash
+# or, without menus, just the new items:
+curl -fsSL https://raw.githubusercontent.com/uthrapathy-m/devops-toolbox/main/install-devops-tool.sh | bash -s -- -t tmux-bar,sofka,k3d,dot-k8s-tui -y
+exec bash
+```
 
 - **Add more tools:** run the same `curl ... | bash` again. Anything already installed is skipped.
 - **Update everything:** add `-s -- --upgrade` to the end of that command.
@@ -120,6 +129,30 @@ Tip: give each environment its own colour (for example, `matrix` on prod and `oc
 - `toolbox-help` lists the aliases and tools that are actually installed on this machine.
 - `toolbox-banner` shows the banner again.
 - `DEVOPS_TOOLBOX_BANNER` controls what appears at login: `1` for this banner (default), `fastfetch` for the detailed fastfetch view, or `0` for nothing. Set it in `~/.devops-toolbox/custom.sh`.
+
+## Sticky top bar (tmux)
+
+The **tmux top bar** item keeps your theme visible all the time. A themed status bar is pinned to the **top** of the screen, and everything else scrolls underneath it:
+
+```
+ DEVOPS  prod-k8s-01 │  1:bash  2:logs            10.0.1.15 │ load 0.24 │ mem 31% │ ⎈ k3d-dev │ 14:32
+```
+
+- **Contents:** hostname, windows, IP, load, memory, Kubernetes context and time, refreshed every 5 seconds. `toolbox-theme <name>` recolours it live, together with the banner, k9s and sofka.
+- **Auto-attach:** every SSH login joins a tmux session called `main`, so the bar is always there. If your connection drops, your work keeps running; SSH back in and you're where you left off.
+- **Banner:** shows once when the session starts, not in every new window.
+- **Safe by design:** only the first shell of an SSH login attaches; nested shells, `bash -c` and VS Code terminals never do. If tmux ever fails to start, you still get a normal shell.
+- **Turn auto-attach off:** add `export DEVOPS_TOOLBOX_TMUX=0` to `~/.devops-toolbox/custom.sh`.
+
+Keys (prefix `Ctrl-a`):
+
+| Keys | Action |
+|---|---|
+| `Ctrl-a` `d` | Detach (work keeps running); reattach with `tmux a` or a new SSH login |
+| `Ctrl-a` `c` / `n` / `p` | New window / next / previous |
+| `Ctrl-a` <code>&#124;</code> / `-` | Split side by side / top and bottom |
+| `Ctrl-a` `h` `j` `k` `l` | Move between panes (`H` `J` `K` `L` to resize) |
+| `Ctrl-a` `[` | Scroll / copy mode (`q` to leave) |
 
 ## k9s and sofka
 
@@ -218,7 +251,7 @@ Anything already installed shows `● version` and is skipped. Pass `--upgrade` 
 | Monitoring | btop, htop, fastfetch (with a custom login banner) |
 | Containers & Kubernetes | docker + compose, kubectl, helm, k9s, [sofka](https://github.com/nklmilojevic/sofka), k3d, k3s server, kubectx/kubens, stern, lazydocker, dive |
 | Cloud & IaC | terraform, opentofu, ansible, AWS CLI v2, Azure CLI, gcloud |
-| Aliases & Dotfiles | General, Git, Kubernetes and Docker alias packs, tmux.conf, fzf defaults, k9s / sofka setup |
+| Aliases & Dotfiles | General, Git, Kubernetes and Docker alias packs, tmux.conf, fzf defaults, k9s / sofka setup, tmux top bar |
 
 Run `--list` to print every item id.
 
